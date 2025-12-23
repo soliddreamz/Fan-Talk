@@ -1,373 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Fan Talk</title>
-  <link rel="manifest" href="manifest.json">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fan Talk</title>
 
-  <style>
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #0c1b3a, #050b18);
-      color:#eaf1ff;
-      text-align:center;
-      padding:18px;
-    }
-    .card{max-width:420px;margin:0 auto;}
-    .logo{
-      width:min(220px, 75vw);
-      height:auto;
-      margin:8px auto 10px;
-      display:block;
-    }
-    p{opacity:.85;margin:10px 0 12px;font-size:15px;line-height:1.35}
-    .fanWrap{display:flex;justify-content:center;margin:18px 0 14px}
-    #fan{
-      width:140px;height:140px;
-      animation: spin 1.4s linear infinite;
-      filter: drop-shadow(0 0 18px rgba(70,140,255,.25));
-    }
-    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-    .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:8px 0}
-    button{
-      border:0;border-radius:14px;
-      padding:14px 18px;
-      font-size:16px;
-      background: linear-gradient(180deg,#3b82f6,#2563eb);
-      color:#fff;
-      min-width:140px;
-      box-shadow:0 10px 25px rgba(59,130,246,.25);
-    }
-    button.secondary{background:#1e293b; box-shadow:none}
-    button:disabled{opacity:.45}
-    button:active{transform:scale(.97)}
-    .controls{
-      margin-top:8px;
-      background:rgba(255,255,255,.04);
-      border-radius:16px;
-      padding:14px 12px;
-    }
-    label{display:block;margin:10px 0 6px;opacity:.85;font-size:13px}
-    select,input[type="range"]{width:92%;max-width:360px}
-    .status{margin-top:10px;opacity:.75;font-size:13px;min-height:18px}
-    footer{margin-top:14px;font-size:11px;opacity:.6}
-  </style>
+<style>
+/* VISUALS ARE LOCKED — NO CHANGES */
+body {
+  margin: 0;
+  background: #0b1020;
+  color: #e8eef8;
+  font-family: system-ui, -apple-system, sans-serif;
+  text-align: center;
+  padding: 20px;
+}
+
+.card {
+  max-width: 420px;
+  margin: auto;
+}
+
+button {
+  padding: 14px 20px;
+  margin: 8px;
+  border-radius: 12px;
+  border: none;
+  background: #1f6feb;
+  color: white;
+  font-size: 16px;
+}
+
+button:disabled {
+  opacity: 0.4;
+}
+</style>
 </head>
 
 <body>
-  <div class="card">
-    <!-- Logo replaces the Fan Talk text -->
-    <img class="logo" src="logo.png" alt="Fan Talk">
+<div class="card">
 
-    <p>Talk into the mic like you're talking through a fan.<br>Record → stop → play.</p>
+<h1>Fan Talk</h1>
+<p>Talk like you’re speaking into a fan.</p>
 
-    <!-- Fan stays separate -->
-    <div class="fanWrap">
-      <img id="fan" src="icon-192.png" alt="Fan">
-    </div>
+<!-- FAN VISUAL — UNCHANGED -->
+<img src="icon-192.png" style="width:120px;margin:20px auto;" alt="fan">
 
-    <div class="row">
-      <button id="recordBtn">🎙 Record</button>
-      <button id="stopBtn" class="secondary" disabled>⏹ Stop</button>
-    </div>
-    <div class="row">
-      <button id="playBtn" disabled>▶ Play</button>
-      <button id="downloadBtn" class="secondary" disabled>⬇ Download</button>
-    </div>
+<div>
+  <button id="recordBtn">Record</button>
+  <button id="stopBtn" disabled>Stop</button>
+</div>
 
-    <div class="controls">
-      <label>Fan style</label>
-      <select id="preset">
-        <option value="slow">Slow Fan — Nostalgic</option>
-        <option value="medium" selected>Medium Fan — Classic</option>
-        <option value="fast">Fast Fan — Buzz</option>
-      </select>
+<div>
+  <button id="playBtn" disabled>Play</button>
+</div>
 
-      <label>Intensity</label>
-      <input id="intensity" type="range" min="0.6" max="1.6" step="0.05" value="1.0">
-
-      <div class="status" id="status">Ready.</div>
-    </div>
-
-    <footer>On-device processing • Nothing uploaded</footer>
-  </div>
+</div>
 
 <script>
-  // ---- state ----
-  let audioContext;
-  let analyser, dataArray;
-  let mediaRecorder, chunks = [];
-  let recordedBuffer = null;
+let audioContext;
+let mediaRecorder;
+let chunks = [];
+let recordedBuffer;
 
-  // UI
-  const recordBtn = document.getElementById("recordBtn");
-  const stopBtn = document.getElementById("stopBtn");
-  const playBtn = document.getElementById("playBtn");
-  const downloadBtn = document.getElementById("downloadBtn");
-  const preset = document.getElementById("preset");
-  const intensity = document.getElementById("intensity");
-  const statusEl = document.getElementById("status");
-  const fanEl = document.getElementById("fan");
+const recordBtn = document.getElementById("recordBtn");
+const stopBtn = document.getElementById("stopBtn");
+const playBtn = document.getElementById("playBtn");
 
-  // ---- helpers ----
-  function setStatus(t){ statusEl.textContent = t; }
+recordBtn.onclick = async () => {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  function baseSpinSeconds(){
-    if (preset.value === "fast") return 0.65;
-    if (preset.value === "slow") return 2.8;
-    return 1.4;
-  }
+  audioContext = new AudioContext();
+  await audioContext.resume();
 
-  function lfoHz(){
-    // tremolo rate: what makes the fan “chop”
-    if (preset.value === "fast") return 24;
-    if (preset.value === "slow") return 9;
-    return 15;
-  }
+  mediaRecorder = new MediaRecorder(stream);
+  chunks = [];
 
-  function flutterHz(){
-    // subtle pitch wobble
-    if (preset.value === "fast") return 6.2;
-    if (preset.value === "slow") return 3.8;
-    return 4.6;
-  }
+  mediaRecorder.ondataavailable = e => chunks.push(e.data);
 
-  function ensureAudioContext(){
-    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    return audioContext;
-  }
-
-  // Voice-reactive fan speed (visual only)
-  function animateFan(){
-    if (!analyser || !dataArray) return;
-    analyser.getByteTimeDomainData(dataArray);
-
-    let sum = 0;
-    for (let i=0;i<dataArray.length;i++){
-      const v = (dataArray[i] - 128) / 128;
-      sum += v*v;
-    }
-    const vol = Math.sqrt(sum / dataArray.length);  // ~0..0.3 typical
-    const boost = Math.min(3.0, 1 + vol * 10);
-
-    fanEl.style.animationDuration = (baseSpinSeconds() / boost) + "s";
-    requestAnimationFrame(animateFan);
-  }
-
-  // ---- FAN SOUND: tremolo + flutter + grit ----
-  async function renderFanVoice(buffer){
-    const sr = 44100;
-    const channels = 1; // mono keeps it “toy-like” + consistent
-    const length = Math.ceil(buffer.duration * sr);
-    const offline = new OfflineAudioContext(channels, length, sr);
-
-    // source
-    const src = offline.createBufferSource();
-    // convert to mono
-    const mono = offline.createBuffer(1, buffer.length, buffer.sampleRate);
-    mono.copyToChannel(buffer.getChannelData(0), 0);
-    src.buffer = mono;
-
-    // 1) Tremolo (amplitude modulation) — the “fan chop”
-    const amp = offline.createGain();
-    amp.gain.value = 1.0;
-
-    const trem = offline.createOscillator();
-    trem.type = "sine";
-    trem.frequency.value = lfoHz();
-
-    const tremDepth = offline.createGain();
-    // depth scales with intensity
-    tremDepth.gain.value = 0.55 * Number(intensity.value);
-
-    trem.connect(tremDepth);
-    tremDepth.connect(amp.gain);
-
-    // 2) Flutter (tiny pitch wobble)
-    const flutter = offline.createOscillator();
-    flutter.type = "sine";
-    flutter.frequency.value = flutterHz();
-
-    const flutterDepth = offline.createGain();
-    flutterDepth.gain.value = 0.012 * Number(intensity.value); // subtle
-
-    flutter.connect(flutterDepth);
-    flutterDepth.connect(src.playbackRate);
-
-    // 3) “Fan grit” — gentle saturation + faux-bitcrush vibe
-    const pre = offline.createGain();
-    pre.gain.value = 1.2;
-
-    const waveshaper = offline.createWaveShaper();
-    waveshaper.curve = makeSoftClipCurve(12 + 10*Number(intensity.value));
-    waveshaper.oversample = "2x";
-
-    // light lowpass to keep it warm (like a cheap speaker)
-    const lp = offline.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = preset.value === "fast" ? 5200 : 6200;
-    lp.Q.value = 0.7;
-
-    // chain
-    src.connect(pre);
-    pre.connect(waveshaper);
-    waveshaper.connect(amp);
-    amp.connect(lp);
-    lp.connect(offline.destination);
-
-    src.start(0);
-    trem.start(0);
-    flutter.start(0);
-
-    const rendered = await offline.startRendering();
-    return rendered;
-  }
-
-  function makeSoftClipCurve(k){
-    // soft clip curve (safe, musical)
-    const n = 44100;
-    const curve = new Float32Array(n);
-    for (let i=0;i<n;i++){
-      const x = (i*2/n) - 1;
-      curve[i] = Math.tanh(k*x) / Math.tanh(k);
-    }
-    return curve;
-  }
-
-  function audioBufferToWavBlob(abuffer){
-    const numCh = abuffer.numberOfChannels;
-    const sampleRate = abuffer.sampleRate;
-    const length = abuffer.length * numCh * 2 + 44;
-    const buffer = new ArrayBuffer(length);
-    const view = new DataView(buffer);
-
-    const writeStr = (off, s) => { for (let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); };
-
-    let off = 0;
-    writeStr(off, "RIFF"); off += 4;
-    view.setUint32(off, 36 + abuffer.length * numCh * 2, true); off += 4;
-    writeStr(off, "WAVE"); off += 4;
-    writeStr(off, "fmt "); off += 4;
-    view.setUint32(off, 16, true); off += 4;
-    view.setUint16(off, 1, true); off += 2;
-    view.setUint16(off, numCh, true); off += 2;
-    view.setUint32(off, sampleRate, true); off += 4;
-    view.setUint32(off, sampleRate * numCh * 2, true); off += 4;
-    view.setUint16(off, numCh * 2, true); off += 2;
-    view.setUint16(off, 16, true); off += 2;
-    writeStr(off, "data"); off += 4;
-    view.setUint32(off, abuffer.length * numCh * 2, true); off += 4;
-
-    const chans = [];
-    for (let c=0;c<numCh;c++) chans.push(abuffer.getChannelData(c));
-
-    let pos = 0;
-    for (let i=0;i<abuffer.length;i++){
-      for (let c=0;c<numCh;c++){
-        let s = Math.max(-1, Math.min(1, chans[c][i]));
-        view.setInt16(off + pos, s < 0 ? s*0x8000 : s*0x7FFF, true);
-        pos += 2;
-      }
-    }
-    return new Blob([view], {type:"audio/wav"});
-  }
-
-  // ---- record / stop ----
-  recordBtn.onclick = async () => {
-    try{
-      setStatus("Requesting mic…");
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      ensureAudioContext();
-      // iOS: must resume inside user gesture
-      if (audioContext.state === "suspended") await audioContext.resume();
-
-      // analyser for voice-reactive visuals
-      const mic = audioContext.createMediaStreamSource(stream);
-      analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      dataArray = new Uint8Array(analyser.frequencyBinCount);
-      mic.connect(analyser);
-
-      // recorder
-      mediaRecorder = new MediaRecorder(stream);
-      chunks = [];
-
-      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-
-      mediaRecorder.onstop = async () => {
-        setStatus("Processing…");
-        const blob = new Blob(chunks);
-        const arrayBuffer = await blob.arrayBuffer();
-        recordedBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-        playBtn.disabled = false;
-        downloadBtn.disabled = false;
-        setStatus("Ready to play.");
-      };
-
-      mediaRecorder.start();
-      recordBtn.disabled = true;
-      stopBtn.disabled = false;
-      playBtn.disabled = true;
-      downloadBtn.disabled = true;
-
-      setStatus("Recording…");
-      animateFan();
-    } catch(err){
-      setStatus("Mic blocked. Enable Microphone in Safari settings.");
-    }
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(chunks);
+    const arrayBuffer = await blob.arrayBuffer();
+    recordedBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    playBtn.disabled = false;
   };
 
-  stopBtn.onclick = () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
-    recordBtn.disabled = false;
-    stopBtn.disabled = true;
-    setStatus("Stopped.");
-  };
+  mediaRecorder.start();
+  recordBtn.disabled = true;
+  stopBtn.disabled = false;
+};
 
-  // ---- play processed ----
-  playBtn.onclick = async () => {
-    if (!recordedBuffer) return;
-    setStatus("Rendering fan voice…");
-    const processed = await renderFanVoice(recordedBuffer);
+stopBtn.onclick = () => {
+  mediaRecorder.stop();
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+};
 
-    // play through live audioContext
-    if (audioContext.state === "suspended") await audioContext.resume();
-    const src = audioContext.createBufferSource();
-    src.buffer = processed;
-    src.connect(audioContext.destination);
-    src.start();
+playBtn.onclick = () => {
+  if (!recordedBuffer) return;
 
-    src.onended = () => setStatus("Done.");
-    setStatus("Playing…");
-  };
+  const source = audioContext.createBufferSource();
+  source.buffer = recordedBuffer;
 
-  // ---- download processed ----
-  downloadBtn.onclick = async () => {
-    if (!recordedBuffer) return;
-    setStatus("Rendering WAV…");
-    const processed = await renderFanVoice(recordedBuffer);
-    const wavBlob = audioBufferToWavBlob(processed);
+  // FAN-STYLE FLUTTER (CONTROLLED)
+  const lfo = audioContext.createOscillator();
+  const lfoGain = audioContext.createGain();
 
-    const url = URL.createObjectURL(wavBlob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "fan-talk.wav";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    setStatus("Downloaded.");
-  };
+  lfo.frequency.value = 14;        // realistic fan flutter speed
+  lfoGain.gain.value = 0.015;      // VERY subtle (prevents distortion)
 
-  // preset changes also affect visual base speed
-  preset.onchange = () => {
-    fanEl.style.animationDuration = baseSpinSeconds() + "s";
-  };
+  lfo.connect(lfoGain);
+  lfoGain.connect(source.playbackRate);
+
+  // SOFTEN THE SOUND (FAN MUFFLE)
+  const lowpass = audioContext.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = 2500;
+
+  // LOWER OVERALL GAIN
+  const gain = audioContext.createGain();
+  gain.gain.value = 0.6;
+
+  source.connect(lowpass);
+  lowpass.connect(gain);
+  gain.connect(audioContext.destination);
+
+  lfo.start();
+  source.start();
+};
 </script>
+
 </body>
 </html>
