@@ -1,548 +1,373 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fan Talk</title>
-
-  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#06112a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="icon-180.png">
 
   <style>
-    :root{
-      --bg1:#071433;
-      --bg2:#020815;
-      --card:rgba(255,255,255,.06);
-      --text:#eaf2ff;
-      --muted:rgba(234,242,255,.72);
-      --btn1:#3b82f6;
-      --btn2:#2563eb;
-      --btnOff:rgba(255,255,255,.10);
-      --shadow:0 22px 55px rgba(0,0,0,.45);
-    }
-
-    html,body{height:100%;}
     body{
       margin:0;
-      background: radial-gradient(1200px 900px at 50% -10%, rgba(59,130,246,.22), transparent 60%),
-                  radial-gradient(900px 700px at 20% 25%, rgba(16,185,129,.09), transparent 55%),
-                  radial-gradient(circle at top, var(--bg1), var(--bg2));
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-      color:var(--text);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:22px;
-    }
-
-    .card{
-      width:min(460px, 92vw);
-      background:var(--card);
-      border-radius:26px;
-      box-shadow:var(--shadow);
-      border:1px solid rgba(255,255,255,.08);
-      padding:24px 22px 18px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #0c1b3a, #050b18);
+      color:#eaf1ff;
       text-align:center;
-      backdrop-filter: blur(10px);
+      padding:18px;
     }
-
-    /* Logo at top replaces the "Fan Talk" text */
-    .topLogo{
-      display:block;
-      margin:4px auto 14px;
-      width:min(280px, 72vw);
+    .card{max-width:420px;margin:0 auto;}
+    .logo{
+      width:min(220px, 75vw);
       height:auto;
-    }
-
-    .subtitle{
-      margin:0 0 14px;
-      color:var(--muted);
-      line-height:1.35;
-      font-size:15px;
-    }
-
-    /* Fan visual */
-    .fanWrap{
-      display:flex;
-      justify-content:center;
-      margin:14px 0 18px;
-    }
-    .fan{
-      width:120px;
-      height:120px;
-      border-radius:50%;
-      position:relative;
-      background:
-        radial-gradient(circle at 50% 50%, rgba(59,130,246,.34), rgba(59,130,246,.06) 55%, rgba(255,255,255,.06) 56%, rgba(255,255,255,.03) 65%, transparent 66%),
-        radial-gradient(circle at 50% 50%, rgba(0,0,0,.2), transparent 60%);
-      border:1px solid rgba(255,255,255,.10);
-      box-shadow: 0 0 35px rgba(59,130,246,.24);
-      overflow:hidden;
-      transform: translateZ(0);
-    }
-    .fanCore{
-      position:absolute;
-      inset:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      transform: rotate(0deg);
-      will-change: transform;
-    }
-    .blade{
-      position:absolute;
-      width:14px;
-      height:46px;
-      border-radius:999px;
-      background: linear-gradient(180deg, rgba(88,160,255,.95), rgba(59,130,246,.55));
-      filter: drop-shadow(0 6px 10px rgba(0,0,0,.25));
-      transform-origin: 50% 95%;
-    }
-    .blade:nth-child(1){ transform: rotate(0deg)   translateY(-6px); }
-    .blade:nth-child(2){ transform: rotate(90deg)  translateY(-6px); }
-    .blade:nth-child(3){ transform: rotate(180deg) translateY(-6px); }
-    .blade:nth-child(4){ transform: rotate(270deg) translateY(-6px); }
-
-    .hub{
-      position:absolute;
-      width:14px;height:14px;border-radius:50%;
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.85), rgba(255,255,255,.12));
-      border:1px solid rgba(255,255,255,.20);
-    }
-
-    /* Buttons */
-    .row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:10px 0 6px;}
-    button{
-      border:0;
-      border-radius:16px;
-      padding:14px 16px;
-      font-size:16px;
-      font-weight:600;
-      color:white;
-      cursor:pointer;
-      min-width:140px;
-      background: linear-gradient(135deg,var(--btn1),var(--btn2));
-      box-shadow: 0 14px 22px rgba(0,0,0,.25);
-    }
-    button.secondary{
-      background: var(--btnOff);
-      color: rgba(234,242,255,.92);
-      box-shadow:none;
-      border:1px solid rgba(255,255,255,.08);
-    }
-    button:disabled{
-      opacity:.45;
-      cursor:not-allowed;
-    }
-
-    .controls{
-      margin-top:10px;
-      background: rgba(0,0,0,.16);
-      border:1px solid rgba(255,255,255,.07);
-      border-radius:18px;
-      padding:12px 12px 10px;
-    }
-    label{
+      margin:8px auto 10px;
       display:block;
-      margin:10px 0 6px;
-      color: rgba(234,242,255,.85);
-      font-size:13px;
-      font-weight:600;
-      letter-spacing:.2px;
     }
-    select, input[type="range"]{
-      width:100%;
+    p{opacity:.85;margin:10px 0 12px;font-size:15px;line-height:1.35}
+    .fanWrap{display:flex;justify-content:center;margin:18px 0 14px}
+    #fan{
+      width:140px;height:140px;
+      animation: spin 1.4s linear infinite;
+      filter: drop-shadow(0 0 18px rgba(70,140,255,.25));
     }
-    select{
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.08);
-      color: var(--text);
-      outline:none;
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+    .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:8px 0}
+    button{
+      border:0;border-radius:14px;
+      padding:14px 18px;
+      font-size:16px;
+      background: linear-gradient(180deg,#3b82f6,#2563eb);
+      color:#fff;
+      min-width:140px;
+      box-shadow:0 10px 25px rgba(59,130,246,.25);
     }
-
-    input[type="range"]{ accent-color:#60a5fa; }
-
-    .status{
-      margin-top:10px;
-      font-size:13px;
-      color: var(--muted);
-      min-height:18px;
+    button.secondary{background:#1e293b; box-shadow:none}
+    button:disabled{opacity:.45}
+    button:active{transform:scale(.97)}
+    .controls{
+      margin-top:8px;
+      background:rgba(255,255,255,.04);
+      border-radius:16px;
+      padding:14px 12px;
     }
-    footer{
-      margin-top:10px;
-      font-size:11px;
-      color: rgba(234,242,255,.55);
-    }
+    label{display:block;margin:10px 0 6px;opacity:.85;font-size:13px}
+    select,input[type="range"]{width:92%;max-width:360px}
+    .status{margin-top:10px;opacity:.75;font-size:13px;min-height:18px}
+    footer{margin-top:14px;font-size:11px;opacity:.6}
   </style>
 </head>
 
 <body>
   <div class="card">
+    <!-- Logo replaces the Fan Talk text -->
+    <img class="logo" src="logo.png" alt="Fan Talk">
 
-    <!-- LOGO replaces the "Fan Talk" title text -->
-    <img class="topLogo" src="logo.png" alt="Fan Talk">
+    <p>Talk into the mic like you're talking through a fan.<br>Record → stop → play.</p>
 
-    <p class="subtitle">Talk into the mic like you're talking through a fan. Record → stop → play or download.</p>
-
-    <!-- FAN stays a fan (not the logo) -->
+    <!-- Fan stays separate -->
     <div class="fanWrap">
-      <div class="fan" aria-label="Fan">
-        <div class="fanCore" id="fanCore">
-          <div class="blade"></div>
-          <div class="blade"></div>
-          <div class="blade"></div>
-          <div class="blade"></div>
-          <div class="hub"></div>
-        </div>
-      </div>
+      <img id="fan" src="icon-192.png" alt="Fan">
     </div>
 
     <div class="row">
-      <button id="recordBtn">🎤 Record</button>
+      <button id="recordBtn">🎙 Record</button>
       <button id="stopBtn" class="secondary" disabled>⏹ Stop</button>
     </div>
     <div class="row">
-      <button id="playBtn" class="secondary" disabled>▶ Play</button>
-      <button id="downloadBtn" class="secondary" disabled>⬇ Download WAV</button>
+      <button id="playBtn" disabled>▶ Play</button>
+      <button id="downloadBtn" class="secondary" disabled>⬇ Download</button>
     </div>
 
     <div class="controls">
-      <label for="preset">Preset</label>
+      <label>Fan style</label>
       <select id="preset">
         <option value="slow">Slow Fan — Nostalgic</option>
         <option value="medium" selected>Medium Fan — Classic</option>
         <option value="fast">Fast Fan — Buzz</option>
       </select>
 
-      <label for="sens">Fan Speed (Sensitivity)</label>
-      <input id="sens" type="range" min="0.5" max="3.0" step="0.05" value="1.3">
+      <label>Intensity</label>
+      <input id="intensity" type="range" min="0.6" max="1.6" step="0.05" value="1.0">
+
+      <div class="status" id="status">Ready.</div>
     </div>
 
-    <div class="status" id="status">Ready.</div>
-    <footer>On-device processing. Nothing uploaded.</footer>
+    <footer>On-device processing • Nothing uploaded</footer>
   </div>
 
 <script>
-(() => {
-  // ===== UI =====
+  // ---- state ----
+  let audioContext;
+  let analyser, dataArray;
+  let mediaRecorder, chunks = [];
+  let recordedBuffer = null;
+
+  // UI
   const recordBtn = document.getElementById("recordBtn");
   const stopBtn = document.getElementById("stopBtn");
   const playBtn = document.getElementById("playBtn");
   const downloadBtn = document.getElementById("downloadBtn");
+  const preset = document.getElementById("preset");
+  const intensity = document.getElementById("intensity");
   const statusEl = document.getElementById("status");
-  const presetEl = document.getElementById("preset");
-  const sensEl = document.getElementById("sens");
-  const fanCore = document.getElementById("fanCore");
+  const fanEl = document.getElementById("fan");
 
-  // ===== FAN ANIMATION (reacts to voice level) =====
-  let fanAngle = 0;
-  let fanSpeed = 0.02; // base
-  function tickFan(){
-    fanAngle += fanSpeed;
-    fanCore.style.transform = `rotate(${fanAngle}rad)`;
-    requestAnimationFrame(tickFan);
-  }
-  tickFan();
+  // ---- helpers ----
+  function setStatus(t){ statusEl.textContent = t; }
 
-  // ===== AUDIO STATE =====
-  let audioCtx = null;
-  let stream = null;
-  let mediaRecorder = null;
-  let chunks = [];
-  let rawBlob = null;
-  let processedWavBlob = null;
-  let processedUrl = null;
-
-  // For voice level tracking
-  let analyser = null;
-  let levelRAF = null;
-
-  // ===== Helpers =====
-  function setStatus(msg){ statusEl.textContent = msg; }
-
-  function getPresetParams() {
-    const v = presetEl.value;
-    if (v === "slow")   return { lfoHz: 6.0,  flutter: 0.015, toneHz: 900 };
-    if (v === "fast")   return { lfoHz: 17.0, flutter: 0.030, toneHz: 1400 };
-    return              { lfoHz: 10.0, flutter: 0.020, toneHz: 1100 }; // medium
+  function baseSpinSeconds(){
+    if (preset.value === "fast") return 0.65;
+    if (preset.value === "slow") return 2.8;
+    return 1.4;
   }
 
-  function rmsFromAnalyser(a) {
-    const buf = new Uint8Array(a.fftSize);
-    a.getByteTimeDomainData(buf);
+  function lfoHz(){
+    // tremolo rate: what makes the fan “chop”
+    if (preset.value === "fast") return 24;
+    if (preset.value === "slow") return 9;
+    return 15;
+  }
+
+  function flutterHz(){
+    // subtle pitch wobble
+    if (preset.value === "fast") return 6.2;
+    if (preset.value === "slow") return 3.8;
+    return 4.6;
+  }
+
+  function ensureAudioContext(){
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    return audioContext;
+  }
+
+  // Voice-reactive fan speed (visual only)
+  function animateFan(){
+    if (!analyser || !dataArray) return;
+    analyser.getByteTimeDomainData(dataArray);
+
     let sum = 0;
-    for (let i=0;i<buf.length;i++){
-      const x = (buf[i] - 128) / 128;
-      sum += x*x;
+    for (let i=0;i<dataArray.length;i++){
+      const v = (dataArray[i] - 128) / 128;
+      sum += v*v;
     }
-    return Math.sqrt(sum / buf.length); // 0..~1
+    const vol = Math.sqrt(sum / dataArray.length);  // ~0..0.3 typical
+    const boost = Math.min(3.0, 1 + vol * 10);
+
+    fanEl.style.animationDuration = (baseSpinSeconds() / boost) + "s";
+    requestAnimationFrame(animateFan);
   }
 
-  function startLevelLoop(){
-    const sens = () => parseFloat(sensEl.value);
-    const base = () => {
-      const p = presetEl.value;
-      if (p === "slow") return 0.02;
-      if (p === "fast") return 0.05;
-      return 0.03;
-    };
+  // ---- FAN SOUND: tremolo + flutter + grit ----
+  async function renderFanVoice(buffer){
+    const sr = 44100;
+    const channels = 1; // mono keeps it “toy-like” + consistent
+    const length = Math.ceil(buffer.duration * sr);
+    const offline = new OfflineAudioContext(channels, length, sr);
 
-    const loop = () => {
-      if (!analyser) return;
-      const level = rmsFromAnalyser(analyser);   // voice level
-      const s = sens();
-      // map level to speed (safe + smooth)
-      fanSpeed = base() + Math.min(0.10, level * 0.18 * s);
-      levelRAF = requestAnimationFrame(loop);
-    };
-    loop();
-  }
-
-  function stopLevelLoop(){
-    if (levelRAF) cancelAnimationFrame(levelRAF);
-    levelRAF = null;
-  }
-
-  // ===== WAV Encoding =====
-  function encodeWAV(audioBuffer) {
-    const numCh = audioBuffer.numberOfChannels;
-    const sampleRate = audioBuffer.sampleRate;
-    const length = audioBuffer.length;
-
-    // interleave
-    const interleaved = new Float32Array(length * numCh);
-    const chans = [];
-    for (let c=0;c<numCh;c++) chans.push(audioBuffer.getChannelData(c));
-    for (let i=0;i<length;i++){
-      for (let c=0;c<numCh;c++){
-        interleaved[i*numCh + c] = chans[c][i];
-      }
-    }
-
-    // 16-bit PCM
-    const bytesPerSample = 2;
-    const blockAlign = numCh * bytesPerSample;
-    const buffer = new ArrayBuffer(44 + interleaved.length * bytesPerSample);
-    const view = new DataView(buffer);
-
-    function writeString(offset, str){
-      for (let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i));
-    }
-    function floatTo16BitPCM(output, offset, input){
-      for (let i=0;i<input.length;i++, offset+=2){
-        let s = Math.max(-1, Math.min(1, input[i]));
-        output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-      }
-    }
-
-    writeString(0, "RIFF");
-    view.setUint32(4, 36 + interleaved.length * bytesPerSample, true);
-    writeString(8, "WAVE");
-    writeString(12, "fmt ");
-    view.setUint32(16, 16, true); // PCM chunk size
-    view.setUint16(20, 1, true);  // PCM format
-    view.setUint16(22, numCh, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, 16, true); // bits
-    writeString(36, "data");
-    view.setUint32(40, interleaved.length * bytesPerSample, true);
-    floatTo16BitPCM(view, 44, interleaved);
-
-    return new Blob([view], { type: "audio/wav" });
-  }
-
-  // ===== Offline processing to avoid distortion =====
-  async function processToWav(raw) {
-    const arr = await raw.arrayBuffer();
-
-    // decode
-    const tmpCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const decoded = await tmpCtx.decodeAudioData(arr.slice(0));
-    await tmpCtx.close();
-
-    // Offline render with "fan" effect + limiter (fix distortion)
-    const sampleRate = decoded.sampleRate;
-    const offline = new OfflineAudioContext(decoded.numberOfChannels, decoded.length, sampleRate);
-
+    // source
     const src = offline.createBufferSource();
-    src.buffer = decoded;
+    // convert to mono
+    const mono = offline.createBuffer(1, buffer.length, buffer.sampleRate);
+    mono.copyToChannel(buffer.getChannelData(0), 0);
+    src.buffer = mono;
 
-    // safer input gain (prevents clipping)
-    const inGain = offline.createGain();
-    inGain.gain.value = 0.75;
+    // 1) Tremolo (amplitude modulation) — the “fan chop”
+    const amp = offline.createGain();
+    amp.gain.value = 1.0;
 
-    // fan tone shaping (gentle bandpass)
-    const bp = offline.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = getPresetParams().toneHz;
-    bp.Q.value = 0.9;
+    const trem = offline.createOscillator();
+    trem.type = "sine";
+    trem.frequency.value = lfoHz();
 
-    // tremolo (fan flutter)
-    const trem = offline.createGain();
-    trem.gain.value = 0.55;
+    const tremDepth = offline.createGain();
+    // depth scales with intensity
+    tremDepth.gain.value = 0.55 * Number(intensity.value);
 
-    const lfo = offline.createOscillator();
-    lfo.type = "sine";
-    lfo.frequency.value = getPresetParams().lfoHz;
+    trem.connect(tremDepth);
+    tremDepth.connect(amp.gain);
 
-    const lfoDepth = offline.createGain();
-    lfoDepth.gain.value = getPresetParams().flutter; // smaller = less distortion
+    // 2) Flutter (tiny pitch wobble)
+    const flutter = offline.createOscillator();
+    flutter.type = "sine";
+    flutter.frequency.value = flutterHz();
 
-    // gentle comb-ish feel: short delay + feedback
-    const delay = offline.createDelay(0.06);
-    delay.delayTime.value = 0.028;
+    const flutterDepth = offline.createGain();
+    flutterDepth.gain.value = 0.012 * Number(intensity.value); // subtle
 
-    const feedback = offline.createGain();
-    feedback.gain.value = 0.22;
+    flutter.connect(flutterDepth);
+    flutterDepth.connect(src.playbackRate);
 
-    // mix dry/wet
-    const dry = offline.createGain();
-    dry.gain.value = 0.78;
-    const wet = offline.createGain();
-    wet.gain.value = 0.48;
+    // 3) “Fan grit” — gentle saturation + faux-bitcrush vibe
+    const pre = offline.createGain();
+    pre.gain.value = 1.2;
 
-    // limiter / compressor (removes harsh distortion)
-    const comp = offline.createDynamicsCompressor();
-    comp.threshold.value = -18;
-    comp.knee.value = 18;
-    comp.ratio.value = 8;
-    comp.attack.value = 0.003;
-    comp.release.value = 0.14;
+    const waveshaper = offline.createWaveShaper();
+    waveshaper.curve = makeSoftClipCurve(12 + 10*Number(intensity.value));
+    waveshaper.oversample = "2x";
 
-    // routing
-    src.connect(inGain);
-    inGain.connect(bp);
+    // light lowpass to keep it warm (like a cheap speaker)
+    const lp = offline.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = preset.value === "fast" ? 5200 : 6200;
+    lp.Q.value = 0.7;
 
-    // tremolo modulation: trem.gain = 0.55 + lfo*s
-    lfo.connect(lfoDepth);
-    lfoDepth.connect(trem.gain);
+    // chain
+    src.connect(pre);
+    pre.connect(waveshaper);
+    waveshaper.connect(amp);
+    amp.connect(lp);
+    lp.connect(offline.destination);
 
-    bp.connect(trem);
-
-    // dry
-    trem.connect(dry);
-
-    // wet delay loop
-    trem.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(wet);
-
-    // sum
-    const sum = offline.createGain();
-    dry.connect(sum);
-    wet.connect(sum);
-
-    sum.connect(comp);
-    comp.connect(offline.destination);
-
-    lfo.start();
     src.start(0);
+    trem.start(0);
+    flutter.start(0);
 
     const rendered = await offline.startRendering();
-    return encodeWAV(rendered);
+    return rendered;
   }
 
-  // ===== Recording =====
-  recordBtn.addEventListener("click", async () => {
-    try {
-      // iOS requires user gesture; create ctx here
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function makeSoftClipCurve(k){
+    // soft clip curve (safe, musical)
+    const n = 44100;
+    const curve = new Float32Array(n);
+    for (let i=0;i<n;i++){
+      const x = (i*2/n) - 1;
+      curve[i] = Math.tanh(k*x) / Math.tanh(k);
+    }
+    return curve;
+  }
 
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: false
-        }
-      });
+  function audioBufferToWavBlob(abuffer){
+    const numCh = abuffer.numberOfChannels;
+    const sampleRate = abuffer.sampleRate;
+    const length = abuffer.length * numCh * 2 + 44;
+    const buffer = new ArrayBuffer(length);
+    const view = new DataView(buffer);
 
-      // analyser for fan response
-      const source = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-      startLevelLoop();
+    const writeStr = (off, s) => { for (let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); };
 
-      // MediaRecorder records raw mic
-      chunks = [];
+    let off = 0;
+    writeStr(off, "RIFF"); off += 4;
+    view.setUint32(off, 36 + abuffer.length * numCh * 2, true); off += 4;
+    writeStr(off, "WAVE"); off += 4;
+    writeStr(off, "fmt "); off += 4;
+    view.setUint32(off, 16, true); off += 4;
+    view.setUint16(off, 1, true); off += 2;
+    view.setUint16(off, numCh, true); off += 2;
+    view.setUint32(off, sampleRate, true); off += 4;
+    view.setUint32(off, sampleRate * numCh * 2, true); off += 4;
+    view.setUint16(off, numCh * 2, true); off += 2;
+    view.setUint16(off, 16, true); off += 2;
+    writeStr(off, "data"); off += 4;
+    view.setUint32(off, abuffer.length * numCh * 2, true); off += 4;
+
+    const chans = [];
+    for (let c=0;c<numCh;c++) chans.push(abuffer.getChannelData(c));
+
+    let pos = 0;
+    for (let i=0;i<abuffer.length;i++){
+      for (let c=0;c<numCh;c++){
+        let s = Math.max(-1, Math.min(1, chans[c][i]));
+        view.setInt16(off + pos, s < 0 ? s*0x8000 : s*0x7FFF, true);
+        pos += 2;
+      }
+    }
+    return new Blob([view], {type:"audio/wav"});
+  }
+
+  // ---- record / stop ----
+  recordBtn.onclick = async () => {
+    try{
+      setStatus("Requesting mic…");
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      ensureAudioContext();
+      // iOS: must resume inside user gesture
+      if (audioContext.state === "suspended") await audioContext.resume();
+
+      // analyser for voice-reactive visuals
+      const mic = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      mic.connect(analyser);
+
+      // recorder
       mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      chunks = [];
 
-      mediaRecorder.onstart = () => {
-        recordBtn.disabled = true;
-        stopBtn.disabled = false;
-        playBtn.disabled = true;
-        downloadBtn.disabled = true;
-        setStatus("Recording…");
-      };
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
 
       mediaRecorder.onstop = async () => {
-        rawBlob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
-        setStatus("Processing fan sound…");
-
-        // stop live mic
-        stopLevelLoop();
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        stream = null;
-
-        // close ctx
-        if (audioCtx) { try { await audioCtx.close(); } catch(e){} }
-        audioCtx = null;
-        analyser = null;
-
-        // process to WAV (fan effect) safely
-        processedWavBlob = await processToWav(rawBlob);
-        processedUrl = URL.createObjectURL(processedWavBlob);
+        setStatus("Processing…");
+        const blob = new Blob(chunks);
+        const arrayBuffer = await blob.arrayBuffer();
+        recordedBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
         playBtn.disabled = false;
         downloadBtn.disabled = false;
-        recordBtn.disabled = false;
-        stopBtn.disabled = true;
-        setStatus("Recorded. Tap Play or Download.");
+        setStatus("Ready to play.");
       };
 
       mediaRecorder.start();
+      recordBtn.disabled = true;
+      stopBtn.disabled = false;
+      playBtn.disabled = true;
+      downloadBtn.disabled = true;
 
-    } catch (err) {
-      console.error(err);
-      setStatus("Mic blocked. Enable microphone permission in Safari settings.");
-      recordBtn.disabled = false;
-      stopBtn.disabled = true;
+      setStatus("Recording…");
+      animateFan();
+    } catch(err){
+      setStatus("Mic blocked. Enable Microphone in Safari settings.");
     }
-  });
+  };
 
-  stopBtn.addEventListener("click", () => {
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      mediaRecorder.stop();
-    }
-  });
+  stopBtn.onclick = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+    recordBtn.disabled = false;
+    stopBtn.disabled = true;
+    setStatus("Stopped.");
+  };
 
-  playBtn.addEventListener("click", () => {
-    if (!processedUrl) return;
-    const a = new Audio(processedUrl);
-    a.play();
-  });
+  // ---- play processed ----
+  playBtn.onclick = async () => {
+    if (!recordedBuffer) return;
+    setStatus("Rendering fan voice…");
+    const processed = await renderFanVoice(recordedBuffer);
 
-  downloadBtn.addEventListener("click", () => {
-    if (!processedUrl) return;
+    // play through live audioContext
+    if (audioContext.state === "suspended") await audioContext.resume();
+    const src = audioContext.createBufferSource();
+    src.buffer = processed;
+    src.connect(audioContext.destination);
+    src.start();
+
+    src.onended = () => setStatus("Done.");
+    setStatus("Playing…");
+  };
+
+  // ---- download processed ----
+  downloadBtn.onclick = async () => {
+    if (!recordedBuffer) return;
+    setStatus("Rendering WAV…");
+    const processed = await renderFanVoice(recordedBuffer);
+    const wavBlob = audioBufferToWavBlob(processed);
+
+    const url = URL.createObjectURL(wavBlob);
     const a = document.createElement("a");
-    a.href = processedUrl;
+    a.href = url;
     a.download = "fan-talk.wav";
     document.body.appendChild(a);
     a.click();
     a.remove();
-  });
+    URL.revokeObjectURL(url);
+    setStatus("Downloaded.");
+  };
 
-})();
+  // preset changes also affect visual base speed
+  preset.onchange = () => {
+    fanEl.style.animationDuration = baseSpinSeconds() + "s";
+  };
 </script>
 </body>
 </html>
