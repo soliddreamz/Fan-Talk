@@ -1,628 +1,548 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#061026" />
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Fan Talk</title>
 
   <!-- PWA -->
-  <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icon-180.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#06112a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-180.png">
 
   <style>
     :root{
-      --bg1:#061026;
-      --bg2:#020814;
-      --card: rgba(255,255,255,0.06);
-      --card2: rgba(255,255,255,0.04);
-      --text: #eaf1ff;
-      --muted: rgba(234,241,255,0.78);
-      --muted2: rgba(234,241,255,0.55);
-      --blue1:#3b82f6;
-      --blue2:#2563eb;
-      --shadow: rgba(0,0,0,0.45);
-      --radius: 28px;
+      --bg1:#071433;
+      --bg2:#020815;
+      --card:rgba(255,255,255,.06);
+      --text:#eaf2ff;
+      --muted:rgba(234,242,255,.72);
+      --btn1:#3b82f6;
+      --btn2:#2563eb;
+      --btnOff:rgba(255,255,255,.10);
+      --shadow:0 22px 55px rgba(0,0,0,.45);
     }
 
-    html, body { height: 100%; }
+    html,body{height:100%;}
     body{
       margin:0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
-      background: radial-gradient(circle at 20% 0%, #0e2a66 0%, var(--bg1) 35%, var(--bg2) 100%);
+      background: radial-gradient(1200px 900px at 50% -10%, rgba(59,130,246,.22), transparent 60%),
+                  radial-gradient(900px 700px at 20% 25%, rgba(16,185,129,.09), transparent 55%),
+                  radial-gradient(circle at top, var(--bg1), var(--bg2));
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      color:var(--text);
       display:flex;
       align-items:center;
       justify-content:center;
-      padding: 20px;
+      padding:22px;
     }
 
-    .wrap{
-      width: min(520px, 92vw);
-    }
-
-    .panel{
-      background: linear-gradient(180deg, var(--card), var(--card2));
-      border-radius: var(--radius);
-      box-shadow: 0 24px 60px var(--shadow);
-      padding: 26px 22px 22px;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+    .card{
+      width:min(460px, 92vw);
+      background:var(--card);
+      border-radius:26px;
+      box-shadow:var(--shadow);
+      border:1px solid rgba(255,255,255,.08);
+      padding:24px 22px 18px;
       text-align:center;
+      backdrop-filter: blur(10px);
     }
 
-    /* Logo at top (replaces Fan Talk text) */
-    .brandLogo{
-      width: min(220px, 70vw);
-      height: auto;
-      margin: 0 auto 14px;
+    /* Logo at top replaces the "Fan Talk" text */
+    .topLogo{
       display:block;
-      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.35));
+      margin:4px auto 14px;
+      width:min(280px, 72vw);
+      height:auto;
     }
 
     .subtitle{
-      margin: 8px auto 18px;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.35;
-      max-width: 440px;
+      margin:0 0 14px;
+      color:var(--muted);
+      line-height:1.35;
+      font-size:15px;
     }
 
-    /* Fan visual (BACK TO FAN IMAGE, NOT LOGO) */
+    /* Fan visual */
     .fanWrap{
-      width: 140px;
-      height: 140px;
-      margin: 18px auto 18px;
+      display:flex;
+      justify-content:center;
+      margin:14px 0 18px;
+    }
+    .fan{
+      width:120px;
+      height:120px;
+      border-radius:50%;
+      position:relative;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(59,130,246,.34), rgba(59,130,246,.06) 55%, rgba(255,255,255,.06) 56%, rgba(255,255,255,.03) 65%, transparent 66%),
+        radial-gradient(circle at 50% 50%, rgba(0,0,0,.2), transparent 60%);
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 0 35px rgba(59,130,246,.24);
+      overflow:hidden;
+      transform: translateZ(0);
+    }
+    .fanCore{
+      position:absolute;
+      inset:0;
       display:flex;
       align-items:center;
       justify-content:center;
+      transform: rotate(0deg);
+      will-change: transform;
     }
-
-    .fanImg{
-      width: 120px;
-      height: 120px;
-      display:block;
-      animation: spin 1.4s linear infinite;
-      filter: drop-shadow(0 12px 22px rgba(0,0,0,0.45));
-      user-select:none;
-      -webkit-user-drag:none;
+    .blade{
+      position:absolute;
+      width:14px;
+      height:46px;
+      border-radius:999px;
+      background: linear-gradient(180deg, rgba(88,160,255,.95), rgba(59,130,246,.55));
+      filter: drop-shadow(0 6px 10px rgba(0,0,0,.25));
+      transform-origin: 50% 95%;
     }
+    .blade:nth-child(1){ transform: rotate(0deg)   translateY(-6px); }
+    .blade:nth-child(2){ transform: rotate(90deg)  translateY(-6px); }
+    .blade:nth-child(3){ transform: rotate(180deg) translateY(-6px); }
+    .blade:nth-child(4){ transform: rotate(270deg) translateY(-6px); }
 
-    @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+    .hub{
+      position:absolute;
+      width:14px;height:14px;border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.85), rgba(255,255,255,.12));
+      border:1px solid rgba(255,255,255,.20);
+    }
 
     /* Buttons */
-    .btnRow{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 4px;
-      justify-items: stretch;
-    }
-
+    .row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:10px 0 6px;}
     button{
-      appearance:none;
-      border:none;
-      border-radius: 16px;
-      padding: 14px 14px;
-      font-size: 16px;
-      color: white;
-      background: linear-gradient(180deg, var(--blue1), var(--blue2));
-      box-shadow: 0 14px 30px rgba(37,99,235,0.35);
+      border:0;
+      border-radius:16px;
+      padding:14px 16px;
+      font-size:16px;
+      font-weight:600;
+      color:white;
       cursor:pointer;
+      min-width:140px;
+      background: linear-gradient(135deg,var(--btn1),var(--btn2));
+      box-shadow: 0 14px 22px rgba(0,0,0,.25);
     }
-
     button.secondary{
-      background: rgba(255,255,255,0.07);
-      color: var(--text);
-      box-shadow: none;
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-
-    button:disabled{
-      opacity: 0.45;
-      cursor: not-allowed;
+      background: var(--btnOff);
+      color: rgba(234,242,255,.92);
       box-shadow:none;
+      border:1px solid rgba(255,255,255,.08);
     }
-
-    button:active{ transform: scale(0.98); }
+    button:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+    }
 
     .controls{
-      margin-top: 14px;
-      padding: 14px 14px 10px;
-      background: rgba(0,0,0,0.15);
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.06);
+      margin-top:10px;
+      background: rgba(0,0,0,.16);
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:18px;
+      padding:12px 12px 10px;
     }
-
     label{
       display:block;
-      margin-top: 10px;
-      margin-bottom: 6px;
-      color: var(--muted);
-      font-size: 13px;
-      letter-spacing: 0.2px;
+      margin:10px 0 6px;
+      color: rgba(234,242,255,.85);
+      font-size:13px;
+      font-weight:600;
+      letter-spacing:.2px;
     }
-
     select, input[type="range"]{
-      width: 100%;
-      max-width: 420px;
-      margin: 0 auto;
-      display:block;
+      width:100%;
     }
-
     select{
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(0,0,0,0.20);
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.08);
       color: var(--text);
       outline:none;
     }
 
-    input[type="range"]{
-      accent-color: var(--blue1);
-    }
+    input[type="range"]{ accent-color:#60a5fa; }
 
     .status{
-      margin-top: 10px;
+      margin-top:10px;
+      font-size:13px;
       color: var(--muted);
-      font-size: 13px;
-      min-height: 18px;
+      min-height:18px;
     }
-
-    .fineprint{
-      margin-top: 10px;
-      color: var(--muted2);
-      font-size: 11px;
-    }
-
-    /* Recording pulse on Record button */
-    .recordingPulse{
-      animation: pulse 1s infinite;
-    }
-    @keyframes pulse{
-      0%{ box-shadow: 0 0 0 0 rgba(59,130,246,0.65), 0 14px 30px rgba(37,99,235,0.35); }
-      70%{ box-shadow: 0 0 0 18px rgba(59,130,246,0), 0 14px 30px rgba(37,99,235,0.35); }
-      100%{ box-shadow: 0 0 0 0 rgba(59,130,246,0), 0 14px 30px rgba(37,99,235,0.35); }
+    footer{
+      margin-top:10px;
+      font-size:11px;
+      color: rgba(234,242,255,.55);
     }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="panel">
+  <div class="card">
 
-      <!-- Logo TOP (replaces Fan Talk text) -->
-      <img class="brandLogo" src="logo.png" alt="Fan Talk" />
+    <!-- LOGO replaces the "Fan Talk" title text -->
+    <img class="topLogo" src="logo.png" alt="Fan Talk">
 
-      <div class="subtitle">
-        Talk into the mic like you're talking through a fan. Record → stop → play or download.
+    <p class="subtitle">Talk into the mic like you're talking through a fan. Record → stop → play or download.</p>
+
+    <!-- FAN stays a fan (not the logo) -->
+    <div class="fanWrap">
+      <div class="fan" aria-label="Fan">
+        <div class="fanCore" id="fanCore">
+          <div class="blade"></div>
+          <div class="blade"></div>
+          <div class="blade"></div>
+          <div class="blade"></div>
+          <div class="hub"></div>
+        </div>
       </div>
-
-      <!-- Fan is BACK and uses icon-192.png -->
-      <div class="fanWrap">
-        <img id="fanImg" class="fanImg" src="icon-192.png" alt="Fan" />
-      </div>
-
-      <div class="btnRow">
-        <button id="recordBtn">🎙 Record</button>
-        <button id="stopBtn" class="secondary" disabled>■ Stop</button>
-        <button id="playBtn" class="secondary" disabled>▶ Play</button>
-        <button id="downloadBtn" class="secondary" disabled>⬇ Download WAV</button>
-      </div>
-
-      <div class="controls">
-        <label for="preset">Preset</label>
-        <select id="preset">
-          <option value="slow">Slow Fan — Nostalgic</option>
-          <option value="medium" selected>Medium Fan — Classic</option>
-          <option value="fast">Fast Fan — Buzz</option>
-        </select>
-
-        <label for="sensitivity">Fan Speed (Sensitivity)</label>
-        <input id="sensitivity" type="range" min="0" max="100" value="45" />
-      </div>
-
-      <div id="status" class="status">Ready.</div>
-      <div class="fineprint">On-device audio only. Nothing uploaded unless you export.</div>
     </div>
+
+    <div class="row">
+      <button id="recordBtn">🎤 Record</button>
+      <button id="stopBtn" class="secondary" disabled>⏹ Stop</button>
+    </div>
+    <div class="row">
+      <button id="playBtn" class="secondary" disabled>▶ Play</button>
+      <button id="downloadBtn" class="secondary" disabled>⬇ Download WAV</button>
+    </div>
+
+    <div class="controls">
+      <label for="preset">Preset</label>
+      <select id="preset">
+        <option value="slow">Slow Fan — Nostalgic</option>
+        <option value="medium" selected>Medium Fan — Classic</option>
+        <option value="fast">Fast Fan — Buzz</option>
+      </select>
+
+      <label for="sens">Fan Speed (Sensitivity)</label>
+      <input id="sens" type="range" min="0.5" max="3.0" step="0.05" value="1.3">
+    </div>
+
+    <div class="status" id="status">Ready.</div>
+    <footer>On-device processing. Nothing uploaded.</footer>
   </div>
 
 <script>
-/**
- * Fan Talk — stable single-file build
- * - Fan reacts to voice level during recording
- * - Applies “fan” effect to the recorded audio (flutter + filtered + mild grit)
- * - Protects against distortion (compressor + safe gain + soft clip)
- * - Exports WAV
- */
+(() => {
+  // ===== UI =====
+  const recordBtn = document.getElementById("recordBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const playBtn = document.getElementById("playBtn");
+  const downloadBtn = document.getElementById("downloadBtn");
+  const statusEl = document.getElementById("status");
+  const presetEl = document.getElementById("preset");
+  const sensEl = document.getElementById("sens");
+  const fanCore = document.getElementById("fanCore");
 
-let mediaRecorder = null;
-let chunks = [];
-let rawArrayBuffer = null;
-let processedWavUrl = null;
-let processedAudioBuffer = null;
+  // ===== FAN ANIMATION (reacts to voice level) =====
+  let fanAngle = 0;
+  let fanSpeed = 0.02; // base
+  function tickFan(){
+    fanAngle += fanSpeed;
+    fanCore.style.transform = `rotate(${fanAngle}rad)`;
+    requestAnimationFrame(tickFan);
+  }
+  tickFan();
 
-const recordBtn = document.getElementById("recordBtn");
-const stopBtn = document.getElementById("stopBtn");
-const playBtn = document.getElementById("playBtn");
-const downloadBtn = document.getElementById("downloadBtn");
-const presetEl = document.getElementById("preset");
-const sensitivityEl = document.getElementById("sensitivity");
-const statusEl = document.getElementById("status");
-const fanImg = document.getElementById("fanImg");
+  // ===== AUDIO STATE =====
+  let audioCtx = null;
+  let stream = null;
+  let mediaRecorder = null;
+  let chunks = [];
+  let rawBlob = null;
+  let processedWavBlob = null;
+  let processedUrl = null;
 
-let meterAnimId = null;
-let meterAudioCtx = null;
-let analyser = null;
-let meterData = null;
-let meterSource = null;
-let meterStream = null;
+  // For voice level tracking
+  let analyser = null;
+  let levelRAF = null;
 
-// Base fan spin durations (seconds per rotation)
-const baseSpin = {
-  slow: 2.7,
-  medium: 1.4,
-  fast: 0.65
-};
+  // ===== Helpers =====
+  function setStatus(msg){ statusEl.textContent = msg; }
 
-// -------------------- UI helpers --------------------
-function setStatus(t){ statusEl.textContent = t; }
-
-function setFanSpinSeconds(sec){
-  // Clamp to keep it reasonable
-  const s = Math.max(0.18, Math.min(6.0, sec));
-  fanImg.style.animationDuration = s + "s";
-}
-
-presetEl.addEventListener("change", () => {
-  // Keep fan stable when not recording; during recording it will be driven by voice
-  const p = presetEl.value;
-  setFanSpinSeconds(baseSpin[p]);
-});
-
-// Init
-setFanSpinSeconds(baseSpin[presetEl.value]);
-
-// -------------------- Recording + Level meter --------------------
-recordBtn.addEventListener("click", async () => {
-  try{
-    // iOS needs user gesture to allow mic, so this is ok here
-    meterStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  }catch(e){
-    setStatus("Mic permission denied. Enable mic in Safari settings.");
-    return;
+  function getPresetParams() {
+    const v = presetEl.value;
+    if (v === "slow")   return { lfoHz: 6.0,  flutter: 0.015, toneHz: 900 };
+    if (v === "fast")   return { lfoHz: 17.0, flutter: 0.030, toneHz: 1400 };
+    return              { lfoHz: 10.0, flutter: 0.020, toneHz: 1100 }; // medium
   }
 
-  chunks = [];
-  rawArrayBuffer = null;
-  processedAudioBuffer = null;
-  if (processedWavUrl){ URL.revokeObjectURL(processedWavUrl); processedWavUrl = null; }
-
-  // MediaRecorder
-  try{
-    mediaRecorder = new MediaRecorder(meterStream);
-  }catch(e){
-    setStatus("Recording not supported in this browser.");
-    return;
-  }
-
-  mediaRecorder.ondataavailable = (ev) => {
-    if (ev.data && ev.data.size > 0) chunks.push(ev.data);
-  };
-
-  mediaRecorder.onstop = async () => {
-    setStatus("Processing…");
-    // stop meter animation
-    stopMeter();
-
-    const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
-    rawArrayBuffer = await blob.arrayBuffer();
-
-    // Decode + process + encode WAV
-    try{
-      processedAudioBuffer = await makeFanEffectBuffer(rawArrayBuffer);
-      const wavBytes = audioBufferToWav(processedAudioBuffer);
-      const wavBlob = new Blob([wavBytes], { type: "audio/wav" });
-      processedWavUrl = URL.createObjectURL(wavBlob);
-
-      playBtn.disabled = false;
-      downloadBtn.disabled = false;
-      setStatus("Recorded. Tap Play or Download.");
-    }catch(err){
-      console.error(err);
-      setStatus("Processing failed. Try again.");
-    }
-  };
-
-  mediaRecorder.start();
-  startMeter(meterStream);
-
-  recordBtn.disabled = true;
-  stopBtn.disabled = false;
-  playBtn.disabled = true;
-  downloadBtn.disabled = true;
-
-  recordBtn.classList.add("recordingPulse");
-  setStatus("Recording…");
-});
-
-stopBtn.addEventListener("click", () => {
-  if (!mediaRecorder) return;
-  try{
-    mediaRecorder.stop();
-  }catch(e){}
-  // stop the stream tracks
-  if (meterStream){
-    meterStream.getTracks().forEach(t => t.stop());
-  }
-  recordBtn.disabled = false;
-  stopBtn.disabled = true;
-  recordBtn.classList.remove("recordingPulse");
-});
-
-playBtn.addEventListener("click", async () => {
-  if (!processedAudioBuffer) return;
-
-  // play via AudioContext so it’s consistent
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  await ctx.resume();
-  const src = ctx.createBufferSource();
-  src.buffer = processedAudioBuffer;
-  src.connect(ctx.destination);
-  src.start();
-});
-
-downloadBtn.addEventListener("click", () => {
-  if (!processedWavUrl) return;
-  const a = document.createElement("a");
-  a.href = processedWavUrl;
-  a.download = "fan-talk.wav";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-});
-
-// -------------------- Voice-reactive fan meter --------------------
-function startMeter(stream){
-  stopMeter();
-
-  meterAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  meterAudioCtx.resume();
-
-  analyser = meterAudioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  meterData = new Uint8Array(analyser.frequencyBinCount);
-
-  meterSource = meterAudioCtx.createMediaStreamSource(stream);
-  meterSource.connect(analyser);
-
-  const loop = () => {
-    analyser.getByteTimeDomainData(meterData);
-
-    // RMS volume
+  function rmsFromAnalyser(a) {
+    const buf = new Uint8Array(a.fftSize);
+    a.getByteTimeDomainData(buf);
     let sum = 0;
-    for (let i=0;i<meterData.length;i++){
-      const v = (meterData[i] - 128) / 128;
-      sum += v*v;
+    for (let i=0;i<buf.length;i++){
+      const x = (buf[i] - 128) / 128;
+      sum += x*x;
     }
-    const rms = Math.sqrt(sum / meterData.length); // ~0..1
-
-    // Sensitivity maps how strongly voice changes speed
-    const sens = Number(sensitivityEl.value) / 100; // 0..1
-
-    const p = presetEl.value;
-    const base = baseSpin[p]; // seconds per rotation
-    // Lower seconds = faster spin
-    const boost = 1 + (rms * 10 * (0.25 + sens)); // 1..(a few)
-    const target = base / boost;
-
-    setFanSpinSeconds(target);
-
-    meterAnimId = requestAnimationFrame(loop);
-  };
-  loop();
-}
-
-function stopMeter(){
-  if (meterAnimId) cancelAnimationFrame(meterAnimId);
-  meterAnimId = null;
-
-  if (meterAudioCtx){
-    try{ meterAudioCtx.close(); }catch(e){}
-  }
-  meterAudioCtx = null;
-  analyser = null;
-  meterData = null;
-  meterSource = null;
-
-  // restore base fan speed
-  setFanSpinSeconds(baseSpin[presetEl.value]);
-}
-
-// -------------------- Audio processing: “fan talk” effect --------------------
-async function makeFanEffectBuffer(arrayBuffer){
-  // Decode
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  await ctx.resume();
-  const inputBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-
-  // Offline render so Play/Download are stable
-  const sr = inputBuffer.sampleRate;
-  const length = inputBuffer.length;
-  const off = new OfflineAudioContext(inputBuffer.numberOfChannels, length, sr);
-
-  const src = off.createBufferSource();
-  src.buffer = inputBuffer;
-
-  // PRE-FILTER: remove rumble & harsh highs
-  const hp = off.createBiquadFilter();
-  hp.type = "highpass";
-  hp.frequency.value = 140;
-
-  const lp = off.createBiquadFilter();
-  lp.type = "lowpass";
-  lp.frequency.value = 5200;
-
-  // “Fan flutter” = modulated delay
-  const delay = off.createDelay(0.05);
-  delay.delayTime.value = 0.012;
-
-  const lfo = off.createOscillator();
-  const lfoGain = off.createGain();
-
-  const preset = presetEl.value;
-  // flutter speed by preset
-  const flutterHz = preset === "fast" ? 18 : preset === "slow" ? 8 : 12;
-  lfo.frequency.value = flutterHz;
-
-  // flutter depth by sensitivity
-  const sens = Number(sensitivityEl.value) / 100; // 0..1
-  lfoGain.gain.value = 0.0025 + (sens * 0.007); // small or it distorts
-
-  lfo.connect(lfoGain);
-  lfoGain.connect(delay.delayTime);
-
-  // mild grit (soft waveshaper) — keeps “fan” buzz without destroying audio
-  const shaper = off.createWaveShaper();
-  shaper.curve = makeSoftClipCurve(220);
-  shaper.oversample = "4x";
-
-  // Blend wet/dry
-  const dry = off.createGain();
-  const wet = off.createGain();
-
-  // Wet mix by preset (slow = less, fast = more)
-  const wetMix = preset === "fast" ? 0.55 : preset === "slow" ? 0.35 : 0.45;
-  wet.gain.value = wetMix;
-  dry.gain.value = 1 - wetMix;
-
-  // Fan “tone” coloring
-  const fanBand = off.createBiquadFilter();
-  fanBand.type = "bandpass";
-  fanBand.frequency.value = preset === "fast" ? 1200 : preset === "slow" ? 700 : 950;
-  fanBand.Q.value = 0.8;
-
-  // Anti-distortion protection
-  const comp = off.createDynamicsCompressor();
-  comp.threshold.value = -18;
-  comp.knee.value = 18;
-  comp.ratio.value = 4;
-  comp.attack.value = 0.008;
-  comp.release.value = 0.18;
-
-  const outGain = off.createGain();
-  outGain.gain.value = 0.92; // safe headroom
-
-  // Routing:
-  // src -> hp -> split to dry and wet
-  src.connect(hp);
-
-  // dry path
-  hp.connect(dry);
-
-  // wet path: hp -> delay(mod) -> band -> shaper -> lp -> wet
-  hp.connect(delay);
-  delay.connect(fanBand);
-  fanBand.connect(shaper);
-  shaper.connect(lp);
-  lp.connect(wet);
-
-  // mix -> compressor -> out
-  const mix = off.createGain();
-  dry.connect(mix);
-  wet.connect(mix);
-
-  mix.connect(comp);
-  comp.connect(outGain);
-  outGain.connect(off.destination);
-
-  // Start
-  src.start(0);
-  lfo.start(0);
-  src.stop(inputBuffer.duration);
-  lfo.stop(inputBuffer.duration);
-
-  const rendered = await off.startRendering();
-  try{ ctx.close(); }catch(e){}
-  return rendered;
-}
-
-function makeSoftClipCurve(amount){
-  // Soft clip curve: keeps “buzz” without harsh digital crackle
-  const n = 44100;
-  const curve = new Float32Array(n);
-  const k = typeof amount === "number" ? amount : 200;
-  for (let i=0; i<n; i++){
-    const x = (i * 2) / n - 1;
-    curve[i] = (1 + k) * x / (1 + k * Math.abs(x));
-  }
-  return curve;
-}
-
-// -------------------- WAV export --------------------
-function audioBufferToWav(buffer){
-  const numCh = buffer.numberOfChannels;
-  const sampleRate = buffer.sampleRate;
-  const length = buffer.length;
-
-  // interleave
-  const channels = [];
-  for (let ch=0; ch<numCh; ch++){
-    channels.push(buffer.getChannelData(ch));
+    return Math.sqrt(sum / buf.length); // 0..~1
   }
 
-  const interleaved = new Float32Array(length * numCh);
-  let idx = 0;
-  for (let i=0; i<length; i++){
-    for (let ch=0; ch<numCh; ch++){
-      interleaved[idx++] = channels[ch][i];
+  function startLevelLoop(){
+    const sens = () => parseFloat(sensEl.value);
+    const base = () => {
+      const p = presetEl.value;
+      if (p === "slow") return 0.02;
+      if (p === "fast") return 0.05;
+      return 0.03;
+    };
+
+    const loop = () => {
+      if (!analyser) return;
+      const level = rmsFromAnalyser(analyser);   // voice level
+      const s = sens();
+      // map level to speed (safe + smooth)
+      fanSpeed = base() + Math.min(0.10, level * 0.18 * s);
+      levelRAF = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+
+  function stopLevelLoop(){
+    if (levelRAF) cancelAnimationFrame(levelRAF);
+    levelRAF = null;
+  }
+
+  // ===== WAV Encoding =====
+  function encodeWAV(audioBuffer) {
+    const numCh = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length;
+
+    // interleave
+    const interleaved = new Float32Array(length * numCh);
+    const chans = [];
+    for (let c=0;c<numCh;c++) chans.push(audioBuffer.getChannelData(c));
+    for (let i=0;i<length;i++){
+      for (let c=0;c<numCh;c++){
+        interleaved[i*numCh + c] = chans[c][i];
+      }
     }
+
+    // 16-bit PCM
+    const bytesPerSample = 2;
+    const blockAlign = numCh * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + interleaved.length * bytesPerSample);
+    const view = new DataView(buffer);
+
+    function writeString(offset, str){
+      for (let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i));
+    }
+    function floatTo16BitPCM(output, offset, input){
+      for (let i=0;i<input.length;i++, offset+=2){
+        let s = Math.max(-1, Math.min(1, input[i]));
+        output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      }
+    }
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + interleaved.length * bytesPerSample, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true); // PCM chunk size
+    view.setUint16(20, 1, true);  // PCM format
+    view.setUint16(22, numCh, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true); // bits
+    writeString(36, "data");
+    view.setUint32(40, interleaved.length * bytesPerSample, true);
+    floatTo16BitPCM(view, 44, interleaved);
+
+    return new Blob([view], { type: "audio/wav" });
   }
 
-  // 16-bit PCM
-  const bytesPerSample = 2;
-  const blockAlign = numCh * bytesPerSample;
-  const byteRate = sampleRate * blockAlign;
-  const dataSize = interleaved.length * bytesPerSample;
+  // ===== Offline processing to avoid distortion =====
+  async function processToWav(raw) {
+    const arr = await raw.arrayBuffer();
 
-  const bufferOut = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(bufferOut);
+    // decode
+    const tmpCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const decoded = await tmpCtx.decodeAudioData(arr.slice(0));
+    await tmpCtx.close();
 
-  writeString(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(view, 8, "WAVE");
-  writeString(view, 12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numCh, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true);
-  writeString(view, 36, "data");
-  view.setUint32(40, dataSize, true);
+    // Offline render with "fan" effect + limiter (fix distortion)
+    const sampleRate = decoded.sampleRate;
+    const offline = new OfflineAudioContext(decoded.numberOfChannels, decoded.length, sampleRate);
 
-  // PCM samples
-  let offset = 44;
-  for (let i=0; i<interleaved.length; i++){
-    let s = Math.max(-1, Math.min(1, interleaved[i]));
-    // convert float to 16-bit
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    offset += 2;
+    const src = offline.createBufferSource();
+    src.buffer = decoded;
+
+    // safer input gain (prevents clipping)
+    const inGain = offline.createGain();
+    inGain.gain.value = 0.75;
+
+    // fan tone shaping (gentle bandpass)
+    const bp = offline.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = getPresetParams().toneHz;
+    bp.Q.value = 0.9;
+
+    // tremolo (fan flutter)
+    const trem = offline.createGain();
+    trem.gain.value = 0.55;
+
+    const lfo = offline.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = getPresetParams().lfoHz;
+
+    const lfoDepth = offline.createGain();
+    lfoDepth.gain.value = getPresetParams().flutter; // smaller = less distortion
+
+    // gentle comb-ish feel: short delay + feedback
+    const delay = offline.createDelay(0.06);
+    delay.delayTime.value = 0.028;
+
+    const feedback = offline.createGain();
+    feedback.gain.value = 0.22;
+
+    // mix dry/wet
+    const dry = offline.createGain();
+    dry.gain.value = 0.78;
+    const wet = offline.createGain();
+    wet.gain.value = 0.48;
+
+    // limiter / compressor (removes harsh distortion)
+    const comp = offline.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 18;
+    comp.ratio.value = 8;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.14;
+
+    // routing
+    src.connect(inGain);
+    inGain.connect(bp);
+
+    // tremolo modulation: trem.gain = 0.55 + lfo*s
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(trem.gain);
+
+    bp.connect(trem);
+
+    // dry
+    trem.connect(dry);
+
+    // wet delay loop
+    trem.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(wet);
+
+    // sum
+    const sum = offline.createGain();
+    dry.connect(sum);
+    wet.connect(sum);
+
+    sum.connect(comp);
+    comp.connect(offline.destination);
+
+    lfo.start();
+    src.start(0);
+
+    const rendered = await offline.startRendering();
+    return encodeWAV(rendered);
   }
 
-  return bufferOut;
-}
+  // ===== Recording =====
+  recordBtn.addEventListener("click", async () => {
+    try {
+      // iOS requires user gesture; create ctx here
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-function writeString(view, offset, str){
-  for (let i=0; i<str.length; i++){
-    view.setUint8(offset + i, str.charCodeAt(i));
-  }
-}
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false
+        }
+      });
+
+      // analyser for fan response
+      const source = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      startLevelLoop();
+
+      // MediaRecorder records raw mic
+      chunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+
+      mediaRecorder.onstart = () => {
+        recordBtn.disabled = true;
+        stopBtn.disabled = false;
+        playBtn.disabled = true;
+        downloadBtn.disabled = true;
+        setStatus("Recording…");
+      };
+
+      mediaRecorder.onstop = async () => {
+        rawBlob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+        setStatus("Processing fan sound…");
+
+        // stop live mic
+        stopLevelLoop();
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = null;
+
+        // close ctx
+        if (audioCtx) { try { await audioCtx.close(); } catch(e){} }
+        audioCtx = null;
+        analyser = null;
+
+        // process to WAV (fan effect) safely
+        processedWavBlob = await processToWav(rawBlob);
+        processedUrl = URL.createObjectURL(processedWavBlob);
+
+        playBtn.disabled = false;
+        downloadBtn.disabled = false;
+        recordBtn.disabled = false;
+        stopBtn.disabled = true;
+        setStatus("Recorded. Tap Play or Download.");
+      };
+
+      mediaRecorder.start();
+
+    } catch (err) {
+      console.error(err);
+      setStatus("Mic blocked. Enable microphone permission in Safari settings.");
+      recordBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+  });
+
+  stopBtn.addEventListener("click", () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+  });
+
+  playBtn.addEventListener("click", () => {
+    if (!processedUrl) return;
+    const a = new Audio(processedUrl);
+    a.play();
+  });
+
+  downloadBtn.addEventListener("click", () => {
+    if (!processedUrl) return;
+    const a = document.createElement("a");
+    a.href = processedUrl;
+    a.download = "fan-talk.wav";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+
+})();
 </script>
 </body>
 </html>
