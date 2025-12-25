@@ -27,7 +27,10 @@
     text-align:center;
     padding:18px 14px 22px;
   }
-  .wrap{ max-width:460px; margin:0 auto; }
+  .wrap{
+    max-width:460px;
+    margin:0 auto;
+  }
   .card{
     background:var(--card);
     border:1px solid var(--stroke);
@@ -80,7 +83,10 @@
   .spinMed{ animation-duration:1.35s; }
   .spinFast{ animation-duration:0.75s; }
 
-  @keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
 
   .row{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
   button{
@@ -138,6 +144,7 @@
     font-size:11px;
   }
 
+  /* subtle nostalgic overlay (safe) */
   body::after{
     content:"";
     position:fixed;
@@ -197,7 +204,7 @@
         </select>
 
         <div class="label">Fan Intensity (more = stronger fan effect)</div>
-        <input id="intensity" type="range" min="0.2" max="1.0" step="0.05" value="0.60" />
+        <input id="intensity" type="range" min="0.2" max="1.0" step="0.05" value="0.55" />
       </div>
 
       <div id="status" class="status">Ready.</div>
@@ -207,20 +214,15 @@
 
 <script>
 /**
- * Fan Talk — LOCKED VISUAL RULES
- * - Logo stays at top ONLY
- * - Fan remains fan SVG
+ * Fan Talk (Locked UI rules)
+ * - Logo only at top (never used as fan)
+ * - Fan SVG stays fan
+ * - Copy/paste safe single-file
  *
- * This version fixes:
- * - "distorted & loud" playback
- * - fan effect not noticeable
- *
- * We do it by:
- * - safer gain staging (headroom)
- * - stronger *clean* tremolo “chop”
- * - gentle flutter (delay mod) for realism
- * - tone shaping (HPF/LPF)
- * - compressor + brickwall-ish limiter (waveshaper)
+ * Audio goals:
+ * - No harsh distortion
+ * - Reduce pops/clicks (fade in/out envelope)
+ * - Fan effect noticeable but smooth
  */
 
 let audioCtx = null;
@@ -229,7 +231,7 @@ let recorder = null;
 let chunks = [];
 let recordedBuffer = null;
 
-// fan reaction to voice
+// for fan reaction
 let analyser = null;
 let dataArray = null;
 let rafId = null;
@@ -289,8 +291,7 @@ function startFanMeter(){
       sum += v*v;
     }
     const rms = Math.sqrt(sum/dataArray.length);
-    // more responsive but still controlled
-    const boost = Math.min(3.2, 1 + rms * 10);
+    const boost = Math.min(2.6, 1 + rms * 8);
     const dur = base() / boost;
     fanSVG.style.animationDuration = dur.toFixed(3) + 's';
     rafId = requestAnimationFrame(tick);
@@ -353,108 +354,115 @@ stopBtn.addEventListener('click', () => {
   stopFanMeter();
 });
 
-/** Simple brickwall-ish limiter using waveshaper */
-function createLimiter(ctx){
-  const shaper = ctx.createWaveShaper();
-  const n = 2048;
-  const curve = new Float32Array(n);
-  // soft clip curve
-  for(let i=0;i<n;i++){
-    const x = (i * 2) / (n - 1) - 1; // -1..1
-    // tanh style soft clip
-    curve[i] = Math.tanh(2.2 * x);
-  }
-  shaper.curve = curve;
-  shaper.oversample = '4x';
-  return shaper;
-}
-
 /**
- * Fan FX Chain (safer, more “fan”, less harsh):
- * HPF -> LPF -> Tremolo -> Flutter -> Compressor -> Limiter -> Output gain
+ * Build the fan effect chain
+ * Changes vs previous:
+ * - gentler flutter modulation (reduces pops)
+ * - slightly relaxed compressor (less pumping)
+ * - added output envelope gain for click-free start/end
  */
-function buildFanEffect(ctx, intensity, preset){
-  const i = Math.min(1, Math.max(0.2, intensity));
-
-  // headroom so we never slam the chain
+function buildFanEffect(ctx, intensity, preset, durationSec){
   const inputGain = ctx.createGain();
-  inputGain.gain.value = 0.75;
+  inputGain.gain.value = 0.95; // headroom
 
-  const hpf = ctx.createBiquadFilter();
-  hpf.type = 'highpass';
-  hpf.frequency.value = 90;
-  hpf.Q.value = 0.7;
+  // Tone shaping
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = preset === 'fast' ? 7200 : 8800;
+  lowpass.Q.value = 0.7;
 
-  const lpf = ctx.createBiquadFilter();
-  lpf.type = 'lowpass';
-  lpf.frequency.value = (preset === 'fast') ? 6200 : 7600;
-  lpf.Q.value = 0.8;
+  const band = ctx.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.value = 900;
+  band.Q.value = 0.8;
 
-  // Tremolo (this is the MAIN “fan” sound)
-  const trem = ctx.createGain();
-  trem.gain.value = 1.0;
+  // Tremolo
+  const tremGain = ctx.createGain();
+  tremGain.gain.value = 1.0;
 
   const lfo = ctx.createOscillator();
-  lfo.type = 'square'; // square gives that classic “fan chop” more clearly
+  lfo.type = 'sine';
   const lfoGain = ctx.createGain();
 
-  const rate = preset === 'fast' ? 24 : (preset === 'slow' ? 8.5 : 14.5);
+  const rate = preset === 'fast' ? 22 : (preset === 'slow' ? 8.5 : 14.5);
   lfo.frequency.value = rate;
 
-  // Depth: more noticeable but still musical
-  // We modulate gain around a base so it never fully mutes.
-  const depth = (0.25 + i * 0.65); // 0.38..0.90 approx
-  // base gain and modulation amount:
-  trem.gain.value = 1.0 - (depth * 0.55);
-  lfoGain.gain.value = depth * 0.55;
+  const depth = Math.min(1, Math.max(0.2, intensity)) * 0.52;
+  lfoGain.gain.value = depth;
+  tremGain.gain.value = 1.0 - (depth * 0.5);
 
   lfo.connect(lfoGain);
-  lfoGain.connect(trem.gain);
+  lfoGain.connect(tremGain.gain);
 
-  // Flutter: tiny delay modulation (keep gentle to avoid “distorted” feel)
-  const delay = ctx.createDelay(0.03);
-  delay.delayTime.value = 0.006;
+  // Subtle flutter with delay modulation (GENTLER to avoid pops)
+  const delay = ctx.createDelay(0.02);
+  delay.delayTime.value = 0.0045;
 
   const flutter = ctx.createOscillator();
   flutter.type = 'sine';
-  flutter.frequency.value = (preset === 'fast') ? 6.2 : 4.6;
+  flutter.frequency.value = preset === 'fast' ? 5.0 : 4.0;
 
   const flutterGain = ctx.createGain();
-  flutterGain.gain.value = 0.0012 * i; // gentler than before
+  flutterGain.gain.value = 0.0009 * intensity; // reduced from 0.0018
 
   flutter.connect(flutterGain);
   flutterGain.connect(delay.delayTime);
 
-  // Compressor: tame peaks, prevent harshness
+  // Compressor (slightly softer)
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -22;
+  comp.threshold.value = -20;
   comp.knee.value = 18;
-  comp.ratio.value = 4.0;
-  comp.attack.value = 0.01;
-  comp.release.value = 0.18;
+  comp.ratio.value = 2.6;
+  comp.attack.value = 0.012;
+  comp.release.value = 0.24;
 
-  // Limiter shaper
-  const limiter = createLimiter(ctx);
+  // Output envelope (kills clicks/pops)
+  const env = ctx.createGain();
+  env.gain.value = 0.0;
 
-  // Final output trim
+  // Final trim
   const outGain = ctx.createGain();
-  outGain.gain.value = 0.78;
+  outGain.gain.value = 0.92;
+
+  // Schedule envelope if duration is known
+  function scheduleEnvelope(startTime){
+    const t0 = startTime;
+    const fadeIn = 0.02;
+    const fadeOut = 0.03;
+    env.gain.cancelScheduledValues(t0);
+    env.gain.setValueAtTime(0.0, t0);
+    env.gain.linearRampToValueAtTime(1.0, t0 + fadeIn);
+
+    if(Number.isFinite(durationSec) && durationSec > (fadeIn + fadeOut + 0.02)){
+      const tEnd = t0 + durationSec;
+      env.gain.setValueAtTime(1.0, tEnd - fadeOut);
+      env.gain.linearRampToValueAtTime(0.0, tEnd);
+    }
+  }
 
   return {
-    inputGain, hpf, lpf, trem, delay, comp, limiter, outGain, lfo, flutter,
+    inputGain, lowpass, band, delay, tremGain, comp, env, outGain,
+    lfo, flutter,
     connect(source, destination){
       source.connect(inputGain);
-      inputGain.connect(hpf);
-      hpf.connect(lpf);
-      lpf.connect(trem);
-      trem.connect(delay);
-      delay.connect(comp);
-      comp.connect(limiter);
-      limiter.connect(outGain);
+      inputGain.connect(lowpass);
+      lowpass.connect(band);
+      band.connect(delay);
+      delay.connect(tremGain);
+      tremGain.connect(comp);
+      comp.connect(env);
+      env.connect(outGain);
       outGain.connect(destination);
     },
-    start(t){ lfo.start(t); flutter.start(t); },
-    stop(t){ lfo.stop(t); flutter.stop(t); }
+    start(t){
+      scheduleEnvelope(t);
+      lfo.start(t);
+      flutter.start(t);
+    },
+    stop(t){
+      lfo.stop(t);
+      flutter.stop(t);
+    }
   };
 }
 
@@ -470,7 +478,7 @@ playBtn.addEventListener('click', async () => {
   const intensity = parseFloat(intensityEl.value);
   const preset = presetSel.value;
 
-  const fx = buildFanEffect(audioCtx, intensity, preset);
+  const fx = buildFanEffect(audioCtx, intensity, preset, recordedBuffer.duration);
   fx.connect(src, audioCtx.destination);
   fx.start(audioCtx.currentTime);
 
@@ -481,7 +489,7 @@ playBtn.addEventListener('click', async () => {
   };
 });
 
-/** Offline render WAV (same FX chain, same loudness control) */
+/** Offline render for clean WAV download */
 downloadBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
   setStatus('Rendering WAV…');
@@ -493,22 +501,14 @@ downloadBtn.addEventListener('click', async () => {
   const len = Math.ceil(recordedBuffer.duration * sr);
   const off = new OfflineAudioContext(1, len, sr);
 
-  // Convert to mono safely (average if stereo)
   const mono = off.createBuffer(1, len, sr);
-  const ch0 = recordedBuffer.getChannelData(0);
-  const ch1 = recordedBuffer.numberOfChannels > 1 ? recordedBuffer.getChannelData(1) : null;
-
-  const out = mono.getChannelData(0);
-  for(let i=0;i<len;i++){
-    const a = ch0[i] || 0;
-    const b = ch1 ? (ch1[i] || 0) : 0;
-    out[i] = ch1 ? (a + b) * 0.5 : a;
-  }
+  const srcData = recordedBuffer.getChannelData(0);
+  mono.copyToChannel(srcData, 0, 0);
 
   const src = off.createBufferSource();
   src.buffer = mono;
 
-  const fx = buildFanEffect(off, intensity, preset);
+  const fx = buildFanEffect(off, intensity, preset, recordedBuffer.duration);
   fx.connect(src, off.destination);
   src.start(0);
   fx.start(0);
@@ -540,7 +540,9 @@ function audioBufferToWavBlob(ab){
   const view = new DataView(buffer);
 
   let o = 0;
-  function writeStr(s){ for(let i=0;i<s.length;i++) view.setUint8(o++, s.charCodeAt(i)); }
+  function writeStr(s){
+    for(let i=0;i<s.length;i++) view.setUint8(o++, s.charCodeAt(i));
+  }
   writeStr('RIFF');
   view.setUint32(o, 36 + dataSize, true); o += 4;
   writeStr('WAVE');
