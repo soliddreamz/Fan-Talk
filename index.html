@@ -216,25 +216,18 @@
 <script>
 /**
  * FAN TALK — Smooth Launch Hardening (NO UI changes)
- * - Ignores Record taps while already recording (prevents glitches)
- * - Auto-stops at 60s with friendly saved message
- * - Stops playback before recording, stops previous playback before new play
- * - Cleans up timers/state safely
- * - Works with your existing sw.js for offline
+ * Fixes in this build:
+ * - Play NEVER overlaps: pressing Play while playing immediately restarts from beginning (Safari-safe)
+ * - Offline readiness: index already registers sw.js; sw.js updated separately
+ * - Record double-tap ignored; auto-stop at 60s
  */
 
-/* ---------------- Service Worker (offline + speed) ---------------- */
+/* ---------------- Service Worker register ---------------- */
 async function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   try{
     const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
     if(reg && reg.update) reg.update();
-    navigator.serviceWorker.addEventListener('message', (e) => {
-      if(e && e.data && e.data.type === 'SW_READY'){
-        // Quiet status notice, no UI changes
-        // setStatus('Updated in background. Close & reopen for latest.');
-      }
-    });
   }catch(err){
     console.warn('SW registration failed:', err);
   }
@@ -260,11 +253,14 @@ let rafId = null;
 const MAX_RECORD_SECONDS = 60;
 let recordTimeoutId = null;
 
-let isRecording = false;          // HARD GUARD: prevents double-tap glitches
-let stopInProgress = false;       // prevents repeated stop calls
-let autoStopTriggered = false;    // for friendly message
+let isRecording = false;
+let stopInProgress = false;
+let autoStopTriggered = false;
 
-let currentPlayback = null;       // { src, fx, env }
+/* Playback hard lock */
+let currentPlayback = null;   // { src, fx, env }
+let isPlaying = false;
+let playbackToken = 0;
 
 /* ---------------- UI elements ---------------- */
 const recordBtn = document.getElementById('recordBtn');
@@ -303,7 +299,7 @@ async function ensureAudio(){
   }
 }
 
-/* ---------------- Fan meter (visual reaction) ---------------- */
+/* ---------------- Fan meter ---------------- */
 function startFanMeter(){
   if(!audioCtx || !mediaStream) return;
   const src = audioCtx.createMediaStreamSource(mediaStream);
@@ -367,27 +363,37 @@ function clearRecordTimeout(){
   }
 }
 
-/* ---------------- Playback guardrail ---------------- */
-function stopPlaybackIfAny(){
-  if(!currentPlayback) return;
+/* ---------------- Playback: HARD stop to prevent overlap ---------------- */
+function stopPlaybackImmediate(){
+  if(!currentPlayback || !audioCtx) {
+    currentPlayback = null;
+    isPlaying = false;
+    return;
+  }
+
+  const now = audioCtx.currentTime;
+
   try{
-    const now = audioCtx ? audioCtx.currentTime : 0;
-    if(currentPlayback.env && audioCtx){
+    // Fast fade to avoid click
+    if(currentPlayback.env){
       currentPlayback.env.gain.cancelScheduledValues(now);
       currentPlayback.env.gain.setValueAtTime(currentPlayback.env.gain.value || 1, now);
-      currentPlayback.env.gain.linearRampToValueAtTime(0, now + 0.03);
-    }
-    if(currentPlayback.src && audioCtx){
-      try{ currentPlayback.src.stop(now + 0.04); }catch(e){}
-    }
-    if(currentPlayback.fx && audioCtx){
-      try{ currentPlayback.fx.stop(now + 0.04); }catch(e){}
+      currentPlayback.env.gain.linearRampToValueAtTime(0, now + 0.01);
     }
   }catch(e){}
+
+  try{ if(currentPlayback.src) currentPlayback.src.stop(now + 0.012); }catch(e){}
+  try{ if(currentPlayback.fx) currentPlayback.fx.stop(now + 0.012); }catch(e){}
+
+  // Safari sometimes keeps nodes alive a moment—disconnect to be extra safe
+  try{ if(currentPlayback.src) currentPlayback.src.disconnect(); }catch(e){}
+  try{ if(currentPlayback.env) currentPlayback.env.disconnect(); }catch(e){}
+
   currentPlayback = null;
+  isPlaying = false;
 }
 
-/* ---------------- Recording fallback (if MediaRecorder missing) ---------------- */
+/* ---------------- Recording fallback ---------------- */
 let fallbackNode = null;
 let fallbackInput = null;
 let fallbackBuffers = [];
@@ -404,7 +410,6 @@ function startFallbackRecording(){
   fallbackSampleRate = audioCtx.sampleRate;
 
   fallbackInput = audioCtx.createMediaStreamSource(mediaStream);
-
   const bufSize = 4096;
   fallbackNode = audioCtx.createScriptProcessor(bufSize, 1, 1);
 
@@ -450,23 +455,20 @@ async function stopFallbackRecordingToBuffer(){
 
 /* ---------------- Record / Stop (HARDENED) ---------------- */
 recordBtn.addEventListener('click', async () => {
-  // HARD GUARD: ignore if already recording (prevents double-tap glitches)
   if(isRecording || stopInProgress) return;
 
-  // Immediately lock state (beats fast double taps)
   isRecording = true;
-  autoStopTriggered = false;
   stopInProgress = false;
+  autoStopTriggered = false;
 
-  // Immediately disable buttons for stability
   setRecordingButtons();
   setStatus('Requesting mic…');
 
   try{
     await ensureAudio();
 
-    // Always stop any playback before recording
-    stopPlaybackIfAny();
+    // Always kill any playback before recording
+    stopPlaybackImmediate();
 
     chunks = [];
     recordedBuffer = null;
@@ -478,7 +480,6 @@ recordBtn.addEventListener('click', async () => {
 
     clearRecordTimeout();
     recordTimeoutId = setTimeout(() => {
-      // Auto-stop guardrail
       if(isRecording && !stopInProgress){
         autoStopTriggered = true;
         stopBtn.click();
@@ -513,11 +514,10 @@ recordBtn.addEventListener('click', async () => {
           stopInProgress = false;
           setHasTakeButtons();
 
-          if(autoStopTriggered){
-            setStatus('Max 60s reached. Saved. Tap Play or Download.');
-          }else{
-            setStatus('Recorded. Tap Play or Download.');
-          }
+          setStatus(autoStopTriggered
+            ? 'Max 60s reached. Saved. Tap Play or Download.'
+            : 'Recorded. Tap Play or Download.'
+          );
         }catch(err){
           console.error(err);
           isRecording = false;
@@ -529,7 +529,6 @@ recordBtn.addEventListener('click', async () => {
 
       recorder.start();
     }else{
-      // Fallback mode
       setStatus('Recording…');
       startFallbackRecording();
     }
@@ -544,16 +543,14 @@ recordBtn.addEventListener('click', async () => {
     setIdleButtons();
 
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if(isIOS){
-      setStatus('Mic blocked. iPhone: Settings → Safari → Microphone → Allow.');
-    }else{
-      setStatus('Mic blocked. Allow microphone access for this site, then try again.');
-    }
+    setStatus(isIOS
+      ? 'Mic blocked. iPhone: Settings → Safari → Microphone → Allow.'
+      : 'Mic blocked. Allow microphone access for this site, then try again.'
+    );
   }
 });
 
 stopBtn.addEventListener('click', async () => {
-  // Guard: ignore if not recording or already stopping
   if(!isRecording || stopInProgress) return;
 
   stopInProgress = true;
@@ -564,9 +561,8 @@ stopBtn.addEventListener('click', async () => {
   try{
     if(mediaRecorderSupported()){
       if(recorder && recorder.state === 'recording'){
-        recorder.stop(); // onstop will finalize and unlock state
+        recorder.stop();
       }else{
-        // edge case: recorder missing
         isRecording = false;
         stopInProgress = false;
         setIdleButtons();
@@ -574,7 +570,6 @@ stopBtn.addEventListener('click', async () => {
       }
       recorder = null;
     }else{
-      // fallback stop: finalize immediately
       recordedBuffer = await stopFallbackRecordingToBuffer();
       if(!recordedBuffer || recordedBuffer.length < 1){
         isRecording = false;
@@ -588,11 +583,10 @@ stopBtn.addEventListener('click', async () => {
       stopInProgress = false;
       setHasTakeButtons();
 
-      if(autoStopTriggered){
-        setStatus('Max 60s reached. Saved. Tap Play or Download.');
-      }else{
-        setStatus('Recorded. Tap Play or Download.');
-      }
+      setStatus(autoStopTriggered
+        ? 'Max 60s reached. Saved. Tap Play or Download.'
+        : 'Recorded. Tap Play or Download.'
+      );
     }
   }catch(e){
     console.error(e);
@@ -603,7 +597,7 @@ stopBtn.addEventListener('click', async () => {
   }
 });
 
-/* ---------------- Fan FX (true fan sound) ---------------- */
+/* ---------------- Fan FX ---------------- */
 function presetProfile(preset){
   if(preset === 'slow'){
     return { tremRate: 8.6, flutterRate: 3.6, lowpassHz: 8600, bedAirLowpass: 4200, bedAirBand: 1200, humHz: 58, bedLevel: 0.038 };
@@ -681,7 +675,6 @@ function buildFanEffect(ctx, intensity, preset){
   lfo.connect(lfoGain);
   lfoGain.connect(tremGain.gain);
 
-  // Bed: air + hum
   const noiseSrc = makeNoiseSource(ctx);
 
   const airHP = ctx.createBiquadFilter();
@@ -788,11 +781,9 @@ function buildFanEffect(ctx, intensity, preset){
   return { connect, start, stop };
 }
 
-/* ---------------- Playback ---------------- */
+/* ---------------- Play (A: restart immediately, NO overlap) ---------------- */
 playBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
-
-  // Don't allow play while recording (keeps it stable)
   if(isRecording || stopInProgress) return;
 
   try{
@@ -802,7 +793,13 @@ playBtn.addEventListener('click', async () => {
     return;
   }
 
-  stopPlaybackIfAny();
+  // If currently playing, STOP IMMEDIATELY then restart from the beginning
+  stopPlaybackImmediate();
+
+  // Create a new token for this playback instance
+  const myToken = ++playbackToken;
+  isPlaying = true;
+
   setStatus('Playing…');
 
   const src = audioCtx.createBufferSource();
@@ -828,9 +825,13 @@ playBtn.addEventListener('click', async () => {
 
   src.start(now);
   src.stop(now + dur + 0.06);
+
   src.onended = () => {
+    // Only clear if this is the most recent playback
+    if(myToken !== playbackToken) return;
     try{ fx.stop(audioCtx.currentTime); }catch(e){}
     currentPlayback = null;
+    isPlaying = false;
     setStatus('Done.');
   };
 });
@@ -838,8 +839,6 @@ playBtn.addEventListener('click', async () => {
 /* ---------------- WAV download ---------------- */
 downloadBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
-
-  // Don't allow download while recording
   if(isRecording || stopInProgress) return;
 
   setStatus('Rendering WAV…');
@@ -949,13 +948,13 @@ function audioBufferToWavBlob(ab){
     return;
   }
 
-  // Keep idle button state consistent on load
   setIdleButtons();
 
-  // Bonus: if user background/returns, stop meter safely
   document.addEventListener('visibilitychange', () => {
     if(document.hidden){
       stopFanMeter();
+      // If you background the app while playing, stop playback to avoid odd Safari states
+      if(audioCtx) stopPlaybackImmediate();
     }
   });
 })();
