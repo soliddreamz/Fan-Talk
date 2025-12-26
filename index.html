@@ -4,7 +4,30 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Fan Talk</title>
+
 <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0c1c3a">
+
+<!-- iOS PWA polish -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fan Talk">
+<link rel="apple-touch-icon" href="icon-180.png">
+
+<!-- Basic SEO / share preview -->
+<meta name="description" content="Talk into the mic like you’re talking through a fan. Record → Play or Download. On-device processing. No uploads.">
+
+<meta property="og:title" content="Fan Talk">
+<meta property="og:description" content="Talk into the mic like you’re talking through a fan. Record → Play or Download. On-device processing. No uploads.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="icon-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:url" content="">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Fan Talk">
+<meta name="twitter:description" content="Talk into the mic like you’re talking through a fan. Record → Play or Download. On-device processing. No uploads.">
+<meta name="twitter:image" content="icon-512.png">
 
 <style>
   :root{
@@ -27,10 +50,7 @@
     text-align:center;
     padding:18px 14px 22px;
   }
-  .wrap{
-    max-width:460px;
-    margin:0 auto;
-  }
+  .wrap{ max-width:460px; margin:0 auto; }
   .card{
     background:var(--card);
     border:1px solid var(--stroke);
@@ -38,13 +58,6 @@
     padding:18px 16px 16px;
     box-shadow:0 18px 50px rgba(0,0,0,0.40);
     backdrop-filter: blur(10px);
-  }
-  .top{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:10px;
-    margin-bottom:6px;
   }
   .logo{
     width:min(240px, 82vw);
@@ -60,11 +73,7 @@
   }
 
   /* Fan visual (logo NEVER goes here) */
-  .fanStage{
-    display:flex;
-    justify-content:center;
-    margin:10px 0 14px;
-  }
+  .fanStage{ display:flex; justify-content:center; margin:10px 0 14px; }
   .fanRing{
     width:150px; height:150px;
     border-radius:999px;
@@ -82,11 +91,7 @@
   .spinSlow{ animation-duration:2.6s; }
   .spinMed{ animation-duration:1.35s; }
   .spinFast{ animation-duration:0.75s; }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
   .row{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
   button{
@@ -109,11 +114,7 @@
   button:disabled{ opacity:0.45; }
   button:active{ transform:scale(0.98); }
 
-  .controls{
-    margin-top:10px;
-    display:grid;
-    gap:10px;
-  }
+  .controls{ margin-top:10px; display:grid; gap:10px; }
   .label{
     color:rgba(234,241,255,0.78);
     font-size:12px;
@@ -214,28 +215,58 @@
 
 <script>
 /**
- * Fan Talk (Locked UI rules)
- * - Logo only at top (never used as fan)
- * - Fan SVG stays fan
- * - Copy/paste safe single-file
- *
- * Audio goals:
- * - No harsh distortion
- * - Reduce pops/clicks (fade in/out envelope)
- * - Fan effect noticeable but smooth
+ * FAN TALK — Smooth Launch Hardening (NO UI changes)
+ * - Ignores Record taps while already recording (prevents glitches)
+ * - Auto-stops at 60s with friendly saved message
+ * - Stops playback before recording, stops previous playback before new play
+ * - Cleans up timers/state safely
+ * - Works with your existing sw.js for offline
  */
 
+/* ---------------- Service Worker (offline + speed) ---------------- */
+async function registerSW(){
+  if(!('serviceWorker' in navigator)) return;
+  try{
+    const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+    if(reg && reg.update) reg.update();
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if(e && e.data && e.data.type === 'SW_READY'){
+        // Quiet status notice, no UI changes
+        // setStatus('Updated in background. Close & reopen for latest.');
+      }
+    });
+  }catch(err){
+    console.warn('SW registration failed:', err);
+  }
+}
+
+/* Set OG url at runtime so it’s correct on GitHub Pages */
+(function setOgUrl(){
+  const og = document.querySelector('meta[property="og:url"]');
+  if(og) og.setAttribute('content', location.href);
+})();
+
+/* ---------------- Core state ---------------- */
 let audioCtx = null;
 let mediaStream = null;
 let recorder = null;
 let chunks = [];
 let recordedBuffer = null;
 
-// for fan reaction
 let analyser = null;
 let dataArray = null;
 let rafId = null;
 
+const MAX_RECORD_SECONDS = 60;
+let recordTimeoutId = null;
+
+let isRecording = false;          // HARD GUARD: prevents double-tap glitches
+let stopInProgress = false;       // prevents repeated stop calls
+let autoStopTriggered = false;    // for friendly message
+
+let currentPlayback = null;       // { src, fx, env }
+
+/* ---------------- UI elements ---------------- */
 const recordBtn = document.getElementById('recordBtn');
 const stopBtn = document.getElementById('stopBtn');
 const playBtn = document.getElementById('playBtn');
@@ -246,7 +277,9 @@ const statusEl = document.getElementById('status');
 const fanSVG = document.getElementById('fanSVG');
 
 function setStatus(t){ statusEl.textContent = t; }
+function clamp(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); }
 
+/* ---------------- Fan preset class ---------------- */
 function setFanPresetClass(){
   fanSVG.classList.remove('spinSlow','spinMed','spinFast');
   const p = presetSel.value;
@@ -257,6 +290,7 @@ function setFanPresetClass(){
 presetSel.addEventListener('change', setFanPresetClass);
 setFanPresetClass();
 
+/* ---------------- Audio init ---------------- */
 async function ensureAudio(){
   if(!audioCtx){
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -269,6 +303,7 @@ async function ensureAudio(){
   }
 }
 
+/* ---------------- Fan meter (visual reaction) ---------------- */
 function startFanMeter(){
   if(!audioCtx || !mediaStream) return;
   const src = audioCtx.createMediaStreamSource(mediaStream);
@@ -308,67 +343,309 @@ function stopFanMeter(){
   setFanPresetClass();
 }
 
-recordBtn.addEventListener('click', async () => {
-  try{
-    setStatus('Requesting mic…');
-    await ensureAudio();
-
-    chunks = [];
-    recorder = new MediaRecorder(mediaStream);
-    recorder.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
-    recorder.onstop = async () => {
-      try{
-        setStatus('Decoding audio…');
-        const blob = new Blob(chunks);
-        const ab = await blob.arrayBuffer();
-        recordedBuffer = await audioCtx.decodeAudioData(ab);
-        playBtn.disabled = false;
-        downloadBtn.disabled = false;
-        setStatus('Recorded. Tap Play or Download.');
-      }catch(err){
-        console.error(err);
-        setStatus('Could not decode recording. Try again.');
-      }
-    };
-
-    recorder.start();
-    recordBtn.disabled = true;
-    stopBtn.disabled = false;
-    playBtn.disabled = true;
-    downloadBtn.disabled = true;
-    setStatus('Recording…');
-    startFanMeter();
-  }catch(err){
-    console.error(err);
-    setStatus('Mic blocked. Enable microphone for this site in Safari settings.');
-  }
-});
-
-stopBtn.addEventListener('click', () => {
-  if(recorder && recorder.state === 'recording'){
-    recorder.stop();
-  }
+/* ---------------- Buttons state helpers ---------------- */
+function setIdleButtons(){
   recordBtn.disabled = false;
   stopBtn.disabled = true;
-  setStatus('Stopping…');
-  stopFanMeter();
+}
+function setRecordingButtons(){
+  recordBtn.disabled = true;
+  stopBtn.disabled = false;
+  playBtn.disabled = true;
+  downloadBtn.disabled = true;
+}
+function setHasTakeButtons(){
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+  playBtn.disabled = false;
+  downloadBtn.disabled = false;
+}
+function clearRecordTimeout(){
+  if(recordTimeoutId){
+    clearTimeout(recordTimeoutId);
+    recordTimeoutId = null;
+  }
+}
+
+/* ---------------- Playback guardrail ---------------- */
+function stopPlaybackIfAny(){
+  if(!currentPlayback) return;
+  try{
+    const now = audioCtx ? audioCtx.currentTime : 0;
+    if(currentPlayback.env && audioCtx){
+      currentPlayback.env.gain.cancelScheduledValues(now);
+      currentPlayback.env.gain.setValueAtTime(currentPlayback.env.gain.value || 1, now);
+      currentPlayback.env.gain.linearRampToValueAtTime(0, now + 0.03);
+    }
+    if(currentPlayback.src && audioCtx){
+      try{ currentPlayback.src.stop(now + 0.04); }catch(e){}
+    }
+    if(currentPlayback.fx && audioCtx){
+      try{ currentPlayback.fx.stop(now + 0.04); }catch(e){}
+    }
+  }catch(e){}
+  currentPlayback = null;
+}
+
+/* ---------------- Recording fallback (if MediaRecorder missing) ---------------- */
+let fallbackNode = null;
+let fallbackInput = null;
+let fallbackBuffers = [];
+let fallbackSampleRate = 44100;
+let fallbackRecording = false;
+
+function mediaRecorderSupported(){
+  return typeof MediaRecorder !== 'undefined';
+}
+
+function startFallbackRecording(){
+  fallbackBuffers = [];
+  fallbackRecording = true;
+  fallbackSampleRate = audioCtx.sampleRate;
+
+  fallbackInput = audioCtx.createMediaStreamSource(mediaStream);
+
+  const bufSize = 4096;
+  fallbackNode = audioCtx.createScriptProcessor(bufSize, 1, 1);
+
+  fallbackNode.onaudioprocess = (e) => {
+    if(!fallbackRecording) return;
+    const input = e.inputBuffer.getChannelData(0);
+    fallbackBuffers.push(new Float32Array(input));
+  };
+
+  const zero = audioCtx.createGain();
+  zero.gain.value = 0;
+
+  fallbackInput.connect(fallbackNode);
+  fallbackNode.connect(zero);
+  zero.connect(audioCtx.destination);
+}
+
+async function stopFallbackRecordingToBuffer(){
+  fallbackRecording = false;
+  try{
+    if(fallbackInput && fallbackNode){
+      fallbackInput.disconnect();
+      fallbackNode.disconnect();
+    }
+  }catch(e){}
+  fallbackInput = null;
+  fallbackNode = null;
+
+  let total = 0;
+  for(const b of fallbackBuffers) total += b.length;
+
+  const out = audioCtx.createBuffer(1, total, fallbackSampleRate);
+  const ch = out.getChannelData(0);
+  let offset = 0;
+  for(const b of fallbackBuffers){
+    ch.set(b, offset);
+    offset += b.length;
+  }
+
+  fallbackBuffers = [];
+  return out;
+}
+
+/* ---------------- Record / Stop (HARDENED) ---------------- */
+recordBtn.addEventListener('click', async () => {
+  // HARD GUARD: ignore if already recording (prevents double-tap glitches)
+  if(isRecording || stopInProgress) return;
+
+  // Immediately lock state (beats fast double taps)
+  isRecording = true;
+  autoStopTriggered = false;
+  stopInProgress = false;
+
+  // Immediately disable buttons for stability
+  setRecordingButtons();
+  setStatus('Requesting mic…');
+
+  try{
+    await ensureAudio();
+
+    // Always stop any playback before recording
+    stopPlaybackIfAny();
+
+    chunks = [];
+    recordedBuffer = null;
+    playBtn.disabled = true;
+    downloadBtn.disabled = true;
+
+    setStatus('Recording…');
+    startFanMeter();
+
+    clearRecordTimeout();
+    recordTimeoutId = setTimeout(() => {
+      // Auto-stop guardrail
+      if(isRecording && !stopInProgress){
+        autoStopTriggered = true;
+        stopBtn.click();
+      }
+    }, MAX_RECORD_SECONDS * 1000);
+
+    if(mediaRecorderSupported()){
+      recorder = new MediaRecorder(mediaStream);
+
+      recorder.ondataavailable = e => {
+        if(e.data && e.data.size) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        try{
+          clearRecordTimeout();
+          setStatus('Decoding audio…');
+
+          const blob = new Blob(chunks);
+          const ab = await blob.arrayBuffer();
+          recordedBuffer = await audioCtx.decodeAudioData(ab);
+
+          if(!recordedBuffer || recordedBuffer.length < 1){
+            isRecording = false;
+            stopInProgress = false;
+            setIdleButtons();
+            setStatus('Recording too short. Try again.');
+            return;
+          }
+
+          isRecording = false;
+          stopInProgress = false;
+          setHasTakeButtons();
+
+          if(autoStopTriggered){
+            setStatus('Max 60s reached. Saved. Tap Play or Download.');
+          }else{
+            setStatus('Recorded. Tap Play or Download.');
+          }
+        }catch(err){
+          console.error(err);
+          isRecording = false;
+          stopInProgress = false;
+          setIdleButtons();
+          setStatus('Could not decode recording. Try again.');
+        }
+      };
+
+      recorder.start();
+    }else{
+      // Fallback mode
+      setStatus('Recording…');
+      startFallbackRecording();
+    }
+
+  }catch(err){
+    console.error(err);
+    clearRecordTimeout();
+    stopFanMeter();
+
+    isRecording = false;
+    stopInProgress = false;
+    setIdleButtons();
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if(isIOS){
+      setStatus('Mic blocked. iPhone: Settings → Safari → Microphone → Allow.');
+    }else{
+      setStatus('Mic blocked. Allow microphone access for this site, then try again.');
+    }
+  }
 });
 
-/**
- * Build the fan effect chain
- * Changes vs previous:
- * - gentler flutter modulation (reduces pops)
- * - slightly relaxed compressor (less pumping)
- * - added output envelope gain for click-free start/end
- */
-function buildFanEffect(ctx, intensity, preset, durationSec){
-  const inputGain = ctx.createGain();
-  inputGain.gain.value = 0.95; // headroom
+stopBtn.addEventListener('click', async () => {
+  // Guard: ignore if not recording or already stopping
+  if(!isRecording || stopInProgress) return;
 
-  // Tone shaping
+  stopInProgress = true;
+  clearRecordTimeout();
+  stopFanMeter();
+  setStatus('Stopping…');
+
+  try{
+    if(mediaRecorderSupported()){
+      if(recorder && recorder.state === 'recording'){
+        recorder.stop(); // onstop will finalize and unlock state
+      }else{
+        // edge case: recorder missing
+        isRecording = false;
+        stopInProgress = false;
+        setIdleButtons();
+        setStatus('Nothing to stop. Tap Record.');
+      }
+      recorder = null;
+    }else{
+      // fallback stop: finalize immediately
+      recordedBuffer = await stopFallbackRecordingToBuffer();
+      if(!recordedBuffer || recordedBuffer.length < 1){
+        isRecording = false;
+        stopInProgress = false;
+        setIdleButtons();
+        setStatus('Recording too short. Try again.');
+        return;
+      }
+
+      isRecording = false;
+      stopInProgress = false;
+      setHasTakeButtons();
+
+      if(autoStopTriggered){
+        setStatus('Max 60s reached. Saved. Tap Play or Download.');
+      }else{
+        setStatus('Recorded. Tap Play or Download.');
+      }
+    }
+  }catch(e){
+    console.error(e);
+    isRecording = false;
+    stopInProgress = false;
+    setIdleButtons();
+    setStatus('Could not stop cleanly. Try again.');
+  }
+});
+
+/* ---------------- Fan FX (true fan sound) ---------------- */
+function presetProfile(preset){
+  if(preset === 'slow'){
+    return { tremRate: 8.6, flutterRate: 3.6, lowpassHz: 8600, bedAirLowpass: 4200, bedAirBand: 1200, humHz: 58, bedLevel: 0.038 };
+  }
+  if(preset === 'fast'){
+    return { tremRate: 22.5, flutterRate: 5.8, lowpassHz: 7000, bedAirLowpass: 5200, bedAirBand: 1500, humHz: 62, bedLevel: 0.050 };
+  }
+  return { tremRate: 14.6, flutterRate: 4.3, lowpassHz: 8200, bedAirLowpass: 4700, bedAirBand: 1350, humHz: 60, bedLevel: 0.043 };
+}
+
+function scheduleFade(gainNode, now, dur){
+  const fadeIn = 0.02;
+  const fadeOut = 0.035;
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(1, now + fadeIn);
+  const endStart = Math.max(now + fadeIn, now + dur - fadeOut);
+  gainNode.gain.setValueAtTime(1, endStart);
+  gainNode.gain.linearRampToValueAtTime(0, endStart + fadeOut);
+}
+
+function makeNoiseSource(ctx){
+  const sr = ctx.sampleRate;
+  const n = sr;
+  const buf = ctx.createBuffer(1, n, sr);
+  const ch = buf.getChannelData(0);
+  for(let i=0;i<n;i++) ch[i] = (Math.random()*2 - 1) * 0.5;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  return src;
+}
+
+function buildFanEffect(ctx, intensity, preset){
+  intensity = clamp(intensity, 0.2, 1.0);
+  const prof = presetProfile(preset);
+
+  const inputGain = ctx.createGain();
+  inputGain.gain.value = 0.95;
+
   const lowpass = ctx.createBiquadFilter();
   lowpass.type = 'lowpass';
-  lowpass.frequency.value = preset === 'fast' ? 7200 : 8800;
+  lowpass.frequency.value = prof.lowpassHz;
   lowpass.Q.value = 0.7;
 
   const band = ctx.createBiquadFilter();
@@ -376,142 +653,233 @@ function buildFanEffect(ctx, intensity, preset, durationSec){
   band.frequency.value = 900;
   band.Q.value = 0.8;
 
-  // Tremolo
+  const delay = ctx.createDelay(0.02);
+  delay.delayTime.value = 0.006;
+
+  const flutter = ctx.createOscillator();
+  flutter.type = 'sine';
+  flutter.frequency.value = prof.flutterRate;
+
+  const flutterGain = ctx.createGain();
+  flutterGain.gain.value = 0;
+  flutter.connect(flutterGain);
+  flutterGain.connect(delay.delayTime);
+
   const tremGain = ctx.createGain();
   tremGain.gain.value = 1.0;
 
   const lfo = ctx.createOscillator();
   lfo.type = 'sine';
+  lfo.frequency.value = prof.tremRate;
+
   const lfoGain = ctx.createGain();
+  const depthMult = (preset === 'medium') ? 0.46 : 0.54;
+  const depthTarget = intensity * depthMult;
+  lfoGain.gain.value = 0;
 
-  const rate = preset === 'fast' ? 22 : (preset === 'slow' ? 8.5 : 14.5);
-  lfo.frequency.value = rate;
-
-  const depth = Math.min(1, Math.max(0.2, intensity)) * 0.52;
-  lfoGain.gain.value = depth;
-  tremGain.gain.value = 1.0 - (depth * 0.5);
-
+  tremGain.gain.value = 1.0 - (depthTarget * 0.5);
   lfo.connect(lfoGain);
   lfoGain.connect(tremGain.gain);
 
-  // Subtle flutter with delay modulation (GENTLER to avoid pops)
-  const delay = ctx.createDelay(0.02);
-  delay.delayTime.value = 0.0045;
+  // Bed: air + hum
+  const noiseSrc = makeNoiseSource(ctx);
 
-  const flutter = ctx.createOscillator();
-  flutter.type = 'sine';
-  flutter.frequency.value = preset === 'fast' ? 5.0 : 4.0;
+  const airHP = ctx.createBiquadFilter();
+  airHP.type = 'highpass';
+  airHP.frequency.value = 120;
+  airHP.Q.value = 0.65;
 
-  const flutterGain = ctx.createGain();
-  flutterGain.gain.value = 0.0009 * intensity; // reduced from 0.0018
+  const airBP = ctx.createBiquadFilter();
+  airBP.type = 'bandpass';
+  airBP.frequency.value = prof.bedAirBand;
+  airBP.Q.value = 0.9;
 
-  flutter.connect(flutterGain);
-  flutterGain.connect(delay.delayTime);
+  const airLP = ctx.createBiquadFilter();
+  airLP.type = 'lowpass';
+  airLP.frequency.value = prof.bedAirLowpass;
+  airLP.Q.value = 0.6;
 
-  // Compressor (slightly softer)
+  const airGain = ctx.createGain();
+  const airTarget = clamp(prof.bedLevel * (0.55 + intensity * 0.9), 0.01, 0.085);
+  airGain.gain.value = 0;
+
+  const bedLFO = ctx.createOscillator();
+  bedLFO.type = 'sine';
+  bedLFO.frequency.value = preset === 'fast' ? 0.9 : 0.6;
+
+  const bedLFOGain = ctx.createGain();
+  bedLFOGain.gain.value = 0;
+  bedLFO.connect(bedLFOGain);
+  bedLFOGain.connect(airGain.gain);
+
+  const humOsc = ctx.createOscillator();
+  humOsc.type = 'sine';
+  humOsc.frequency.value = prof.humHz;
+
+  const humGain = ctx.createGain();
+  const humTarget = clamp(0.004 + intensity * 0.006, 0.003, 0.012);
+  humGain.gain.value = 0;
+
+  const sum = ctx.createGain();
+  sum.gain.value = 1.0;
+
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -20;
+  comp.threshold.value = -18;
   comp.knee.value = 18;
-  comp.ratio.value = 2.6;
-  comp.attack.value = 0.012;
-  comp.release.value = 0.24;
+  comp.ratio.value = 3.2;
+  comp.attack.value = 0.01;
+  comp.release.value = 0.2;
 
-  // Output envelope (kills clicks/pops)
-  const env = ctx.createGain();
-  env.gain.value = 0.0;
-
-  // Final trim
   const outGain = ctx.createGain();
   outGain.gain.value = 0.92;
 
-  // Schedule envelope if duration is known
-  function scheduleEnvelope(startTime){
-    const t0 = startTime;
-    const fadeIn = 0.02;
-    const fadeOut = 0.03;
-    env.gain.cancelScheduledValues(t0);
-    env.gain.setValueAtTime(0.0, t0);
-    env.gain.linearRampToValueAtTime(1.0, t0 + fadeIn);
+  function connect(source, destination){
+    source.connect(inputGain);
+    inputGain.connect(lowpass);
+    lowpass.connect(band);
+    band.connect(delay);
+    delay.connect(tremGain);
+    tremGain.connect(sum);
 
-    if(Number.isFinite(durationSec) && durationSec > (fadeIn + fadeOut + 0.02)){
-      const tEnd = t0 + durationSec;
-      env.gain.setValueAtTime(1.0, tEnd - fadeOut);
-      env.gain.linearRampToValueAtTime(0.0, tEnd);
-    }
+    noiseSrc.connect(airHP);
+    airHP.connect(airBP);
+    airBP.connect(airLP);
+    airLP.connect(airGain);
+    airGain.connect(sum);
+
+    humOsc.connect(humGain);
+    humGain.connect(sum);
+
+    sum.connect(comp);
+    comp.connect(outGain);
+    outGain.connect(destination);
   }
 
-  return {
-    inputGain, lowpass, band, delay, tremGain, comp, env, outGain,
-    lfo, flutter,
-    connect(source, destination){
-      source.connect(inputGain);
-      inputGain.connect(lowpass);
-      lowpass.connect(band);
-      band.connect(delay);
-      delay.connect(tremGain);
-      tremGain.connect(comp);
-      comp.connect(env);
-      env.connect(outGain);
-      outGain.connect(destination);
-    },
-    start(t){
-      scheduleEnvelope(t);
-      lfo.start(t);
-      flutter.start(t);
-    },
-    stop(t){
-      lfo.stop(t);
-      flutter.stop(t);
-    }
-  };
+  function start(t){
+    const ramp = 0.035;
+
+    lfoGain.gain.setValueAtTime(0, t);
+    lfoGain.gain.linearRampToValueAtTime(depthTarget, t + ramp);
+
+    flutterGain.gain.setValueAtTime(0, t);
+    flutterGain.gain.linearRampToValueAtTime(0.0017 * intensity, t + ramp);
+
+    airGain.gain.setValueAtTime(0, t);
+    airGain.gain.linearRampToValueAtTime(airTarget, t + ramp);
+
+    bedLFOGain.gain.setValueAtTime(0, t);
+    bedLFOGain.gain.linearRampToValueAtTime(airTarget * 0.10, t + ramp);
+
+    humGain.gain.setValueAtTime(0, t);
+    humGain.gain.linearRampToValueAtTime(humTarget, t + ramp * 1.2);
+
+    lfo.start(t);
+    flutter.start(t);
+    noiseSrc.start(t);
+    bedLFO.start(t);
+    humOsc.start(t);
+  }
+
+  function stop(t){
+    const safeStop = (node) => { try{ node.stop(t); }catch(e){} };
+    safeStop(lfo); safeStop(flutter); safeStop(noiseSrc); safeStop(bedLFO); safeStop(humOsc);
+  }
+
+  return { connect, start, stop };
 }
 
+/* ---------------- Playback ---------------- */
 playBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
-  await ensureAudio();
 
+  // Don't allow play while recording (keeps it stable)
+  if(isRecording || stopInProgress) return;
+
+  try{
+    await ensureAudio();
+  }catch(e){
+    setStatus('Audio blocked. Tap once, then try Play again.');
+    return;
+  }
+
+  stopPlaybackIfAny();
   setStatus('Playing…');
 
   const src = audioCtx.createBufferSource();
   src.buffer = recordedBuffer;
 
+  const env = audioCtx.createGain();
+  env.gain.value = 0;
+
   const intensity = parseFloat(intensityEl.value);
   const preset = presetSel.value;
 
-  const fx = buildFanEffect(audioCtx, intensity, preset, recordedBuffer.duration);
-  fx.connect(src, audioCtx.destination);
-  fx.start(audioCtx.currentTime);
+  const fx = buildFanEffect(audioCtx, intensity, preset);
+  fx.connect(src, env);
+  env.connect(audioCtx.destination);
 
-  src.start();
+  const now = audioCtx.currentTime;
+  const dur = recordedBuffer.duration;
+
+  scheduleFade(env, now, dur);
+  fx.start(now);
+
+  currentPlayback = { src, fx, env };
+
+  src.start(now);
+  src.stop(now + dur + 0.06);
   src.onended = () => {
     try{ fx.stop(audioCtx.currentTime); }catch(e){}
+    currentPlayback = null;
     setStatus('Done.');
   };
 });
 
-/** Offline render for clean WAV download */
+/* ---------------- WAV download ---------------- */
 downloadBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
+
+  // Don't allow download while recording
+  if(isRecording || stopInProgress) return;
+
   setStatus('Rendering WAV…');
 
   const preset = presetSel.value;
   const intensity = parseFloat(intensityEl.value);
 
-  const sr = 44100;
-  const len = Math.ceil(recordedBuffer.duration * sr);
+  const sr = recordedBuffer.sampleRate || 44100;
+  const dur = recordedBuffer.duration;
+  const tail = 0.08;
+  const len = Math.ceil((dur + tail) * sr);
+
   const off = new OfflineAudioContext(1, len, sr);
 
   const mono = off.createBuffer(1, len, sr);
-  const srcData = recordedBuffer.getChannelData(0);
-  mono.copyToChannel(srcData, 0, 0);
+  const outCh = mono.getChannelData(0);
+
+  const ch0 = recordedBuffer.getChannelData(0);
+  const ch1 = (recordedBuffer.numberOfChannels > 1) ? recordedBuffer.getChannelData(1) : null;
+
+  const frames = Math.min(ch0.length, Math.floor(dur * sr));
+  for(let i=0;i<frames;i++){
+    const v = ch1 ? (ch0[i] + ch1[i]) * 0.5 : ch0[i];
+    outCh[i] = v;
+  }
 
   const src = off.createBufferSource();
   src.buffer = mono;
 
-  const fx = buildFanEffect(off, intensity, preset, recordedBuffer.duration);
-  fx.connect(src, off.destination);
+  const env = off.createGain();
+  env.gain.value = 0;
+
+  const fx = buildFanEffect(off, intensity, preset);
+  fx.connect(src, env);
+  env.connect(off.destination);
+
+  scheduleFade(env, 0, dur);
   src.start(0);
   fx.start(0);
+  src.stop(dur + tail);
 
   const rendered = await off.startRendering();
   const wavBlob = audioBufferToWavBlob(rendered);
@@ -570,6 +938,27 @@ function audioBufferToWavBlob(ab){
   }
   return new Blob([buffer], {type:'audio/wav'});
 }
+
+/* ---------------- Startup ---------------- */
+(async function init(){
+  registerSW();
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus('This browser does not support microphone input.');
+    recordBtn.disabled = true;
+    return;
+  }
+
+  // Keep idle button state consistent on load
+  setIdleButtons();
+
+  // Bonus: if user background/returns, stop meter safely
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){
+      stopFanMeter();
+    }
+  });
+})();
 </script>
 </body>
 </html>
