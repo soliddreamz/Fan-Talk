@@ -42,6 +42,9 @@
     height:auto;
     display:block;
     margin:2px auto 10px;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
   }
   .desc{
     margin:6px auto 14px;
@@ -50,7 +53,7 @@
     line-height:1.35;
   }
 
-  /* Fan visual (logo NEVER goes here) — RESTORED */
+  /* Fan visual (logo NEVER goes here) */
   .fanStage{ display:flex; justify-content:center; margin:10px 0 14px; }
   .fanRing{
     width:150px; height:150px;
@@ -144,13 +147,13 @@
   <div class="wrap">
     <div class="card">
       <!-- Logo stays at the top -->
-      <img src="logo.png" class="logo" alt="Fan Talk logo" />
+      <img id="topLogo" src="logo.png" class="logo" alt="Fan Talk logo" />
 
       <div class="desc">
         Talk into the mic like you’re talking through a fan. Record → Play or Download.
       </div>
 
-      <!-- Fan stays a fan (never the logo) — RESTORED -->
+      <!-- Fan stays a fan (never the logo) -->
       <div class="fanStage">
         <div class="fanRing">
           <svg id="fanSVG" class="fanSVG spinMed" viewBox="0 0 100 100" aria-label="Fan animation">
@@ -187,17 +190,16 @@
       </div>
 
       <div id="status" class="status">Ready.</div>
-      <footer>On-device processing · No uploads</footer>
+      <footer id="footer">On-device processing · No uploads</footer>
     </div>
   </div>
 
 <script>
-/**
- * Fan Talk (LOCKED UI)
- * - Restores original UI exactly
- * - Adds: update available notice (status line only)
- * - Keeps: 60s auto-stop, anti-double-tap, play restart (no overlap), fan reacts to voice
- */
+/* =========================================================
+   Fan Talk — Locked UI + Smooth UX + Offline + Update Notice
+   + Privacy-safe local analytics (NO tracking / NO uploads)
+   Hidden: triple-tap logo shows/copies local analytics
+   ========================================================= */
 
 const APP_VERSION = '1.0.1'; // bump when you ship updates
 
@@ -220,7 +222,7 @@ let stopInProgress = false;
 let autoStopTriggered = false;
 
 // playback hard stop (no overlap)
-let currentPlayback = null; // { src, fx, env }
+let currentPlayback = null;
 let playbackToken = 0;
 
 const recordBtn = document.getElementById('recordBtn');
@@ -231,9 +233,16 @@ const presetSel = document.getElementById('preset');
 const intensityEl = document.getElementById('intensity');
 const statusEl = document.getElementById('status');
 const fanSVG = document.getElementById('fanSVG');
+const topLogo = document.getElementById('topLogo');
+const footer = document.getElementById('footer');
 
 function setStatus(t){ statusEl.textContent = t; }
 
+function clamp(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); }
+
+/* -----------------------
+   Fan speed classes
+----------------------- */
 function setFanPresetClass(){
   fanSVG.classList.remove('spinSlow','spinMed','spinFast');
   const p = presetSel.value;
@@ -241,12 +250,191 @@ function setFanPresetClass(){
   else if(p === 'fast') fanSVG.classList.add('spinFast');
   else fanSVG.classList.add('spinMed');
 }
-presetSel.addEventListener('change', setFanPresetClass);
+presetSel.addEventListener('change', () => {
+  setFanPresetClass();
+  Analytics.event('preset_change', { preset: presetSel.value });
+});
 setFanPresetClass();
 
-/* -------- Update notice system (NO UI changes) -------- */
+/* =========================================================
+   Privacy-safe LOCAL analytics
+   - Stored in localStorage on the user's device
+   - No network calls
+   - Optional share: triple-tap logo copies summary
+========================================================= */
+const Analytics = (() => {
+  const KEY = 'fanTalk_analytics_v1';
+  const INSTALL_KEY = 'fanTalk_installed_flag_v1';
+  let sessionStarted = false;
+
+  function nowISO(){ return new Date().toISOString(); }
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return {
+      schema: 1,
+      appVersionFirstSeen: APP_VERSION,
+      firstSeen: nowISO(),
+      lastSeen: nowISO(),
+      counts: {
+        app_open: 0,
+        app_open_standalone: 0,
+        record_start: 0,
+        record_stop_manual: 0,
+        record_stop_auto: 0,
+        play_start: 0,
+        download: 0,
+        preset_change: 0
+      },
+      presets: { slow: 0, medium: 0, fast: 0 },
+      lastPreset: 'medium',
+      intensity: { min: null, max: null, avg: null, n: 0 },
+      lastEvents: []
+    };
+  }
+
+  function save(a){
+    try{ localStorage.setItem(KEY, JSON.stringify(a)); }catch(e){}
+  }
+
+  function displayMode(){
+    // iOS standalone + general standalone
+    const isStandalone = (window.navigator.standalone === true) ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    return isStandalone ? 'standalone' : 'browser';
+  }
+
+  function bumpIntensity(a, val){
+    const v = clamp(val, 0.2, 1.0);
+    if(a.intensity.min === null || v < a.intensity.min) a.intensity.min = v;
+    if(a.intensity.max === null || v > a.intensity.max) a.intensity.max = v;
+    a.intensity.n += 1;
+    const n = a.intensity.n;
+    a.intensity.avg = (a.intensity.avg === null) ? v : (a.intensity.avg + (v - a.intensity.avg) / n);
+  }
+
+  function pushEvent(a, name, props){
+    const item = { t: nowISO(), name, ...props };
+    a.lastEvents.push(item);
+    if(a.lastEvents.length > 10) a.lastEvents.shift();
+  }
+
+  function event(name, props = {}){
+    const a = load();
+    a.lastSeen = nowISO();
+
+    // counts
+    if(!a.counts[name]) a.counts[name] = 0;
+    a.counts[name] += 1;
+
+    // preset + intensity stats
+    if(props.preset && a.presets[props.preset] !== undefined){
+      a.presets[props.preset] += 1;
+      a.lastPreset = props.preset;
+    }
+    if(props.intensity != null){
+      bumpIntensity(a, props.intensity);
+    }
+
+    pushEvent(a, name, props);
+    save(a);
+  }
+
+  function markSessionStart(){
+    if(sessionStarted) return;
+    sessionStarted = true;
+
+    event('app_open', { mode: displayMode(), ver: APP_VERSION });
+
+    // First time opening as installed (standalone)
+    const mode = displayMode();
+    if(mode === 'standalone'){
+      event('app_open_standalone', { ver: APP_VERSION });
+      try{
+        const flagged = localStorage.getItem(INSTALL_KEY);
+        if(!flagged){
+          localStorage.setItem(INSTALL_KEY, '1');
+          // Not shown to user; just an internal "installed first seen"
+          pushEvent(load(), 'installed_first_seen', { t: nowISO() });
+        }
+      }catch(e){}
+    }
+  }
+
+  function summaryText(){
+    const a = load();
+    const lines = [];
+    lines.push(`Fan Talk — Local Analytics (private)`);
+    lines.push(`App Version: ${APP_VERSION}`);
+    lines.push(`Mode: ${displayMode()}`);
+    lines.push(`First Seen: ${a.firstSeen}`);
+    lines.push(`Last Seen:  ${a.lastSeen}`);
+    lines.push('');
+    lines.push('Counts:');
+    Object.keys(a.counts).sort().forEach(k => lines.push(`- ${k}: ${a.counts[k]}`));
+    lines.push('');
+    lines.push('Preset usage:');
+    lines.push(`- slow: ${a.presets.slow}`);
+    lines.push(`- medium: ${a.presets.medium}`);
+    lines.push(`- fast: ${a.presets.fast}`);
+    lines.push('');
+    if(a.intensity.n > 0){
+      lines.push(`Intensity: min=${a.intensity.min.toFixed(2)} max=${a.intensity.max.toFixed(2)} avg=${a.intensity.avg.toFixed(2)} (n=${a.intensity.n})`);
+    }else{
+      lines.push(`Intensity: (no data yet)`);
+    }
+    lines.push('');
+    lines.push('Recent events:');
+    a.lastEvents.slice(-10).forEach(e => {
+      const extra = Object.keys(e).filter(k => !['t','name'].includes(k)).map(k => `${k}=${e[k]}`).join(' ');
+      lines.push(`- ${e.t}  ${e.name}${extra ? '  ' + extra : ''}`);
+    });
+    return lines.join('\n');
+  }
+
+  async function showAndCopy(){
+    const txt = summaryText();
+    // Try copy
+    let copied = false;
+    try{
+      if(navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(txt);
+        copied = true;
+      }
+    }catch(e){}
+    alert(txt + (copied ? '\n\n✅ Copied to clipboard — paste it to me for support.' : '\n\n(Clipboard copy not available here. You can screenshot this.)'));
+  }
+
+  return { event, markSessionStart, showAndCopy, displayMode };
+})();
+
+/* Hidden gesture: triple-tap logo to show/copy analytics */
+(() => {
+  let taps = 0;
+  let timer = null;
+  topLogo.addEventListener('click', async () => {
+    taps += 1;
+    if(timer) clearTimeout(timer);
+    timer = setTimeout(() => { taps = 0; }, 700);
+    if(taps >= 3){
+      taps = 0;
+      await Analytics.showAndCopy();
+    }
+  }, { passive: true });
+})();
+
+/* Track intensity changes (no UI changes) */
+intensityEl.addEventListener('input', () => {
+  Analytics.event('intensity_change', { intensity: parseFloat(intensityEl.value) });
+}, { passive: true });
+
+/* -----------------------
+   Update notice system
+----------------------- */
 function showUpdateNotice(){
-  // Don’t interrupt recording/playback messaging; show when idle-ish
   if(isRecording || stopInProgress) return;
   setStatus('Update available. Close and reopen the app.');
 }
@@ -256,7 +444,6 @@ async function registerSW(){
   try{
     const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
 
-    // If there's already a waiting worker, notify
     if(reg.waiting && navigator.serviceWorker.controller){
       showUpdateNotice();
     }
@@ -270,17 +457,14 @@ async function registerSW(){
         }
       });
     });
-
-    // Optional: if controller changes, user reopened or refreshed and got new version
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      // Keep it quiet; status will naturally update with user actions
-    });
   }catch(err){
     console.warn('SW registration failed:', err);
   }
 }
 
-/* -------- Audio setup -------- */
+/* -----------------------
+   Audio setup
+----------------------- */
 async function ensureAudio(){
   if(!audioCtx){
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -293,7 +477,9 @@ async function ensureAudio(){
   }
 }
 
-/* -------- Fan meter (voice reaction) -------- */
+/* -----------------------
+   Fan meter (voice reaction)
+----------------------- */
 function startFanMeter(){
   if(!audioCtx || !mediaStream) return;
   const src = audioCtx.createMediaStreamSource(mediaStream);
@@ -333,7 +519,9 @@ function stopFanMeter(){
   setFanPresetClass();
 }
 
-/* -------- Playback: hard stop (prevents overlap) -------- */
+/* -----------------------
+   Playback: hard stop (prevents overlap)
+----------------------- */
 function stopPlaybackImmediate(){
   if(!currentPlayback || !audioCtx){
     currentPlayback = null;
@@ -358,9 +546,9 @@ function stopPlaybackImmediate(){
   currentPlayback = null;
 }
 
-/* -------- FX (same as your stable build: tremolo + flutter + EQ + comp + subtle bed) -------- */
-function clamp(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); }
-
+/* -----------------------
+   FX chain (stable + subtle)
+----------------------- */
 function presetProfile(preset){
   if(preset === 'slow'){
     return { tremRate: 8.6, flutterRate: 3.6, lowpassHz: 8600, bedAirLowpass: 4200, bedAirBand: 1200, humHz: 58, bedLevel: 0.038 };
@@ -544,7 +732,9 @@ function buildFanEffect(ctx, intensity, preset){
   return { connect, start, stop };
 }
 
-/* -------- Record / Stop -------- */
+/* -----------------------
+   Record / Stop (smooth, ignore double taps)
+----------------------- */
 function clearRecordTimeout(){
   if(recordTimeoutId){
     clearTimeout(recordTimeoutId);
@@ -553,8 +743,10 @@ function clearRecordTimeout(){
 }
 
 recordBtn.addEventListener('click', async () => {
-  // ignore double taps / bad states
   if(isRecording || stopInProgress) return;
+
+  Analytics.markSessionStart();
+  Analytics.event('record_start', { preset: presetSel.value, intensity: parseFloat(intensityEl.value) });
 
   isRecording = true;
   stopInProgress = false;
@@ -645,6 +837,8 @@ stopBtn.addEventListener('click', () => {
 
   try{
     if(recorder && recorder.state === 'recording'){
+      if(autoStopTriggered) Analytics.event('record_stop_auto', { preset: presetSel.value });
+      else Analytics.event('record_stop_manual', { preset: presetSel.value });
       recorder.stop();
     }else{
       isRecording = false;
@@ -663,16 +857,19 @@ stopBtn.addEventListener('click', () => {
   }
 });
 
-/* -------- Play (restart immediately, no overlap) -------- */
+/* -----------------------
+   Play (restart, no overlap)
+----------------------- */
 playBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
   if(isRecording || stopInProgress) return;
 
+  Analytics.markSessionStart();
+  Analytics.event('play_start', { preset: presetSel.value, intensity: parseFloat(intensityEl.value) });
+
   await ensureAudio();
 
-  // Restart immediately
   stopPlaybackImmediate();
-
   const myToken = ++playbackToken;
 
   setStatus('Playing…');
@@ -709,10 +906,15 @@ playBtn.addEventListener('click', async () => {
   };
 });
 
-/* -------- Offline WAV download -------- */
+/* -----------------------
+   Offline WAV download
+----------------------- */
 downloadBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
   if(isRecording || stopInProgress) return;
+
+  Analytics.markSessionStart();
+  Analytics.event('download', { preset: presetSel.value, intensity: parseFloat(intensityEl.value) });
 
   setStatus('Rendering WAV…');
 
@@ -811,8 +1013,13 @@ function audioBufferToWavBlob(ab){
   return new Blob([buffer], {type:'audio/wav'});
 }
 
-/* -------- Init -------- */
+/* -----------------------
+   Init
+----------------------- */
 (async function init(){
+  // Start session analytics (open)
+  Analytics.markSessionStart();
+
   await registerSW();
 
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
