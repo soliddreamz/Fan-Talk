@@ -1,5 +1,5 @@
 /* Fan Talk Service Worker — bulletproof offline + GH Pages safe */
-const CACHE_VERSION = 'fan-talk-v10';
+const CACHE_VERSION = 'fan-talk-v11';
 const CORE_ASSETS = [
   './index.html',
   './manifest.json',
