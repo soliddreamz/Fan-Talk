@@ -192,15 +192,14 @@
 
 <script>
 /**
- * Fan Talk (LOCKED UI + RESTORED AUDIO)
+ * Fan Talk (Locked UI rules)
+ * - Logo only at top (never used as fan)
+ * - Fan SVG stays fan
+ * - Copy/paste safe single-file
  *
- * RESTORED from your original approved build:
- * - tremolo + subtle flutter + EQ + compression
- * - ramp/fade to avoid pops
- *
- * ONLY stability fixes added:
- * - Record tap while already recording is ignored
- * - Play tap while already playing restarts cleanly (no overlap)
+ * Fix in this version:
+ * - Remove start pop on MEDIUM by ramping FX + adding fade in/out envelope
+ * - Slightly reduce tremolo depth for Medium only
  */
 
 let audioCtx = null;
@@ -286,24 +285,58 @@ function stopFanMeter(){
   setFanPresetClass();
 }
 
-/* ===== Playback overlap fix (NO SOUND CHANGE) ===== */
-let currentPlay = null;
-function stopCurrentPlay(){
-  if(!currentPlay || !audioCtx) { currentPlay = null; return; }
-  const now = audioCtx.currentTime;
+recordBtn.addEventListener('click', async () => {
   try{
-    currentPlay.env.gain.cancelScheduledValues(now);
-    currentPlay.env.gain.setValueAtTime(currentPlay.env.gain.value || 1, now);
-    currentPlay.env.gain.linearRampToValueAtTime(0, now + 0.01);
-  }catch(e){}
-  try{ currentPlay.src.stop(now + 0.012); }catch(e){}
-  try{ currentPlay.fx.stop(now + 0.012); }catch(e){}
-  currentPlay = null;
-}
+    setStatus('Requesting mic…');
+    await ensureAudio();
+
+    chunks = [];
+    recorder = new MediaRecorder(mediaStream);
+    recorder.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = async () => {
+      try{
+        setStatus('Decoding audio…');
+        const blob = new Blob(chunks);
+        const ab = await blob.arrayBuffer();
+        recordedBuffer = await audioCtx.decodeAudioData(ab);
+        playBtn.disabled = false;
+        downloadBtn.disabled = false;
+        setStatus('Recorded. Tap Play or Download.');
+      }catch(err){
+        console.error(err);
+        setStatus('Could not decode recording. Try again.');
+      }
+    };
+
+    recorder.start();
+    recordBtn.disabled = true;
+    stopBtn.disabled = false;
+    playBtn.disabled = true;
+    downloadBtn.disabled = true;
+    setStatus('Recording…');
+    startFanMeter();
+  }catch(err){
+    console.error(err);
+    setStatus('Mic blocked. Enable microphone for this site in Safari settings.');
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  if(recorder && recorder.state === 'recording'){
+    recorder.stop();
+  }
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+  setStatus('Stopping…');
+  stopFanMeter();
+});
 
 /**
  * Build the fan effect chain with smooth ramp to avoid pops.
- * (This is your original approved chain.)
+ * Added:
+ * - envelope gain node (fade in/out controlled outside)
+ * - LFO depth ramp-in over 30ms
+ * - slightly reduced depth on Medium
  */
 function buildFanEffect(ctx, intensity, preset){
   // clamp intensity
@@ -331,11 +364,11 @@ function buildFanEffect(ctx, intensity, preset){
   lfo.type = 'sine';
 
   const lfoGain = ctx.createGain();
-  // Depth tuning: medium a hair lower (fixes start click)
+  // Depth tuning: medium a hair lower (fixes the start click you hear)
   const depthMult = (preset === 'medium') ? 0.48 : 0.55;
   const depthTarget = intensity * depthMult;
 
-  // Start depth at 0; ramp in during start()
+  // Start depth at 0; we ramp it in during start()
   lfoGain.gain.value = 0;
 
   const rate = preset === 'fast' ? 22 : (preset === 'slow' ? 8.5 : 14.5);
@@ -418,62 +451,9 @@ function scheduleFade(gainNode, now, dur){
   gainNode.gain.linearRampToValueAtTime(0, endStart + fadeOut);
 }
 
-/* ===== Record button (ignore if already recording) ===== */
-recordBtn.addEventListener('click', async () => {
-  // Stability fix: ignore if already recording
-  if(recorder && recorder.state === 'recording') return;
-
-  try{
-    setStatus('Requesting mic…');
-    await ensureAudio();
-
-    chunks = [];
-    recorder = new MediaRecorder(mediaStream);
-    recorder.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
-    recorder.onstop = async () => {
-      try{
-        setStatus('Decoding audio…');
-        const blob = new Blob(chunks);
-        const ab = await blob.arrayBuffer();
-        recordedBuffer = await audioCtx.decodeAudioData(ab);
-        playBtn.disabled = false;
-        downloadBtn.disabled = false;
-        setStatus('Recorded. Tap Play or Download.');
-      }catch(err){
-        console.error(err);
-        setStatus('Could not decode recording. Try again.');
-      }
-    };
-
-    recorder.start();
-    recordBtn.disabled = true;
-    stopBtn.disabled = false;
-    playBtn.disabled = true;
-    downloadBtn.disabled = true;
-    setStatus('Recording…');
-    startFanMeter();
-  }catch(err){
-    console.error(err);
-    setStatus('Mic blocked. Enable microphone for this site in Safari settings.');
-  }
-});
-
-stopBtn.addEventListener('click', () => {
-  if(recorder && recorder.state === 'recording'){
-    recorder.stop();
-  }
-  recordBtn.disabled = false;
-  stopBtn.disabled = true;
-  setStatus('Stopping…');
-  stopFanMeter();
-});
-
 playBtn.addEventListener('click', async () => {
   if(!recordedBuffer) return;
   await ensureAudio();
-
-  // Stability fix: stop previous play so it never overlaps
-  stopCurrentPlay();
 
   setStatus('Playing…');
 
@@ -497,13 +477,10 @@ playBtn.addEventListener('click', async () => {
   scheduleFade(env, now, dur);
   fx.start(now);
 
-  currentPlay = { src, env, fx };
-
   src.start(now);
   src.stop(now + dur + 0.05); // tiny tail for fade-out
   src.onended = () => {
     try{ fx.stop(audioCtx.currentTime); }catch(e){}
-    currentPlay = null;
     setStatus('Done.');
   };
 });
